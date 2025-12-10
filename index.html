@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>今天吃什么</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+       tailwind.config = {
+         theme: {
+            extend: {
+                fontFamily: {
+                    sans: ['"Inter"', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+                },
+                colors: {
+                    bg: '#F2F4F8', // Reference Clock App Background
+                    surface: '#F2F4F8',
+                    text: {
+                        main: '#2D3436',
+                        sub: '#8898AA',
+                    },
+                    weather: {
+                        start: '#4A90E2',
+                        end: '#6C5CE7',
+                    }
+                },
+                boxShadow: {
+                    // The "Clock" App Soft Shadows
+                    'neu-flat': '8px 8px 16px #D1D9E6, -8px -8px 16px #FFFFFF',
+                    'neu-pressed': 'inset 6px 6px 10px #D1D9E6, inset -6px -6px 10px #FFFFFF',
+                    'neu-icon': '5px 5px 10px #D1D9E6, -5px -5px 10px #FFFFFF',
+                    'neu-button': '6px 6px 12px #C8D0E7, -6px -6px 12px #FFFFFF',
+                    
+                    // Weather Card Shadow
+                    'glass-lg': '0 20px 40px rgba(74, 144, 226, 0.3)',
+                },
+                backgroundImage: {
+                    'weather-gradient': 'linear-gradient(135deg, #66A6FF 0%, #89F7FE 100%)', // Lighter blue style
+                    'weather-deep': 'linear-gradient(135deg, #5B8DEF 0%, #2D6ADC 100%)', // Deep Blue from ref
+                }
+            }
+         }
+       }
+    </script>
+    <style>
+      body {
+        background-color: #F2F4F8;
+        color: #2D3436;
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+        height: 100vh; 
+        height: 100dvh; 
+        width: 100vw;
+        position: fixed; 
+      }
+      
+      #root {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Rain Texture Overlay for Weather Card */
+      .rain-pattern {
+          background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'%3E%3Ccircle cx='3' cy='3' r='1'/%3E%3Ccircle cx='13' cy='13' r='1'/%3E%3C/g%3E%3C/svg%3E");
+      }
+
+      /* Clock Dial Tick Marks */
+      .clock-tick {
+          position: absolute;
+          left: 50%;
+          transform-origin: bottom center;
+          background: #CBD5E0;
+      }
+
+      /* Toggle Switch Input Hidden */
+      .toggle-checkbox:checked {
+          right: 0;
+          border-color: #68D391;
+      }
+      .toggle-checkbox:checked + .toggle-label {
+          background-color: #68D391;
+      }
+      
+      .no-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.32.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

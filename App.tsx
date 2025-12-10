@@ -16,6 +16,14 @@ interface WeatherData {
   aqi?: number; 
 }
 
+const DEFAULT_OPTIONS: Option[] = [
+  { id: '1', text: '火锅' }, 
+  { id: '2', text: '烧烤' }, 
+  { id: '3', text: '日料' }, 
+  { id: '4', text: '汉堡' }, 
+  { id: '5', text: '炒菜' }
+];
+
 // --- Weather Helpers ---
 const getWeatherDescription = (code: number): string => {
     if (code === 0) return '晴';
@@ -159,9 +167,7 @@ const ClockWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option
 };
 
 const FoodView = ({ weather }: { weather: WeatherData | null }) => {
-    const [options, setOptions] = useState<Option[]>([
-        { id: '1', text: '火锅' }, { id: '2', text: '烧烤' }, { id: '3', text: '日料' }, { id: '4', text: '汉堡' }, { id: '5', text: '炒菜' }
-    ]);
+    const [options, setOptions] = useState<Option[]>(DEFAULT_OPTIONS);
     const [rotation, setRotation] = useState(0);
     const [isSpinning, setIsSpinning] = useState(false);
     const [winner, setWinner] = useState<Option | null>(null);
@@ -198,7 +204,7 @@ const FoodView = ({ weather }: { weather: WeatherData | null }) => {
                 <div className="flex-none pt-4 flex justify-between items-center px-6">
                     <div className="text-xl font-bold text-[#2D3436]">今天吃什么</div>
                     <div className="flex gap-4">
-                        <button onClick={() => setOptions([])} className="w-10 h-10 rounded-full shadow-neu-button flex items-center justify-center text-gray-400 hover:text-red-500 active:shadow-neu-pressed transition-all">
+                        <button onClick={() => setOptions(DEFAULT_OPTIONS)} className="w-10 h-10 rounded-full shadow-neu-button flex items-center justify-center text-gray-400 hover:text-red-500 active:shadow-neu-pressed transition-all">
                             <Icons.Refresh width={18} />
                         </button>
                     </div>

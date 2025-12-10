@@ -9,12 +9,27 @@ interface Option {
   text: string;
 }
 
+// Updated Default Options
 const DEFAULT_OPTIONS: Option[] = [
-  { id: '1', text: '火锅' }, 
-  { id: '2', text: '烧烤' }, 
-  { id: '3', text: '日料' }, 
-  { id: '4', text: '汉堡' }, 
-  { id: '5', text: '炒菜' }
+  { id: '1', text: '羊肉串' }, 
+  { id: '2', text: '麻辣烫' }, 
+  { id: '3', text: '辣鸡爪' }, 
+  { id: '4', text: '火锅' }, 
+  { id: '5', text: '涮串' }
+];
+
+// Pastel Palette (Low Saturation)
+const PASTEL_PALETTE = [
+  '#F9E0E0', // Red
+  '#FDECC8', // Orange
+  '#FEF9C3', // Yellow
+  '#DCFCE7', // Green
+  '#D1FAE5', // Mint
+  '#CFFAFE', // Cyan
+  '#E0F2FE', // Azure
+  '#DBEAFE', // Blue
+  '#F3E8FF', // Violet
+  '#FAE8FF'  // Purple
 ];
 
 // Expanded Holidays (Includes CN/KR examples for 2024/2025 context)
@@ -84,19 +99,20 @@ const ClockWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option
       ctx.moveTo(centerX, centerY);
       ctx.arc(centerX, centerY, radius, angle, angle + arc);
       ctx.lineTo(centerX, centerY);
-      // Smartisan minimalist colors
-      ctx.fillStyle = i % 2 === 0 ? '#FFFFFF' : '#FAFAFA'; 
+      
+      // Use random pastel colors from the palette
+      ctx.fillStyle = PASTEL_PALETTE[i % PASTEL_PALETTE.length]; 
       ctx.fill();
       
-      // Fine separator lines
-      ctx.strokeStyle = '#EEEEEE';
-      ctx.lineWidth = 1;
+      // Fine separator lines (slightly darker to be visible on pastels)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       ctx.translate(centerX, centerY);
       ctx.rotate(angle + arc / 2);
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#555555'; 
+      ctx.fillStyle = '#555555'; // Dark gray text for contrast
       ctx.font = '500 28px "Noto Sans SC", sans-serif'; 
       ctx.fillText(opt.text, radius - 40, 10);
       

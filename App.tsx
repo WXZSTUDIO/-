@@ -135,7 +135,9 @@ const ClockWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option
                 bg-white border border-[#E5E5E5] shadow-smart-btn
             `}
         >
-             <div className={`w-3 h-3 rounded-full ${isSpinning ? 'bg-smart-red' : 'bg-smart-text-main'}`}></div>
+             <span className={`text-lg font-bold ${isSpinning ? 'text-smart-red' : 'text-smart-text-main'}`}>
+                 {isSpinning ? '...' : '开始'}
+             </span>
         </button>
       </div>
 
@@ -270,8 +272,9 @@ const FoodView = () => {
 const CalcView = () => {
     const [display, setDisplay] = useState('0');
     
+    // Standard layout: 4 columns
     const buttons = [
-        ['C', '%', '÷'],
+        ['C', '⌫', '%', '÷'],
         ['7', '8', '9', '×'],
         ['4', '5', '6', '-'],
         ['1', '2', '3', '+'],
@@ -279,8 +282,11 @@ const CalcView = () => {
     ];
 
     const handlePress = (btn: string) => {
-        if (btn === 'C') setDisplay('0');
-        else if (btn === '=') {
+        if (btn === 'C') {
+            setDisplay('0');
+        } else if (btn === '⌫') {
+            setDisplay(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
+        } else if (btn === '=') {
             try {
                 // eslint-disable-next-line no-eval
                 const res = eval(display.replace('×', '*').replace('÷', '/'));
@@ -289,7 +295,7 @@ const CalcView = () => {
                 setDisplay('Error');
             }
         } else {
-            setDisplay(display === '0' ? btn : display + btn);
+            setDisplay(display === '0' && btn !== '.' ? btn : display + btn);
         }
     };
 
@@ -309,7 +315,7 @@ const CalcView = () => {
                          const isZero = btn === '0';
                          const isAction = ['='].includes(btn); 
                          const isOp = ['÷','×','-','+'].includes(btn);
-                         const isFunc = ['C','%'].includes(btn);
+                         const isFunc = ['C','%','⌫'].includes(btn);
                          
                          let btnClass = "bg-[#F7F7F7] text-smart-text-main hover:bg-[#F0F0F0]"; 
                          

@@ -3,41 +3,52 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>今天吃什么</title>
+    <title>Smartisan OS Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
     <script>
        tailwind.config = {
          theme: {
             extend: {
                 fontFamily: {
-                    sans: ['"Inter"', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+                    sans: ['"Noto Sans SC"', '-apple-system', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
                 },
                 colors: {
-                    bg: '#F2F4F8', // Reference Clock App Background
-                    surface: '#F2F4F8',
-                    text: {
-                        main: '#2D3436',
-                        sub: '#8898AA',
-                    },
-                    weather: {
-                        start: '#4A90E2',
-                        end: '#6C5CE7',
+                    smart: {
+                        bg: '#F5F5F5',         // Global background
+                        card: '#FFFFFF',       // Card background
+                        text: {
+                            main: '#333333',
+                            sub: '#7F7F7F',
+                            light: '#B2B2B2'
+                        },
+                        divider: '#E5E5E5',
+                        red: '#D44E45',        // Smartisan Red
+                        blue: '#5D9CEC',       // Smartisan Blue
+                        orange: '#F0AD4E',
+                        green: '#A0D468',
+                        chip: {
+                            redBg: '#FDECEC',
+                            redText: '#D95E57',
+                            grayBg: '#FFFFFF',
+                            grayBorder: '#E1E1E1'
+                        }
                     }
                 },
                 boxShadow: {
-                    // The "Clock" App Soft Shadows
-                    'neu-flat': '8px 8px 16px #D1D9E6, -8px -8px 16px #FFFFFF',
-                    'neu-pressed': 'inset 6px 6px 10px #D1D9E6, inset -6px -6px 10px #FFFFFF',
-                    'neu-icon': '5px 5px 10px #D1D9E6, -5px -5px 10px #FFFFFF',
-                    'neu-button': '6px 6px 12px #C8D0E7, -6px -6px 12px #FFFFFF',
-                    
-                    // Weather Card Shadow
-                    'glass-lg': '0 20px 40px rgba(74, 144, 226, 0.3)',
+                    'smart-card': '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
+                    'smart-float': '0 4px 12px rgba(0,0,0,0.08)',
+                    'smart-btn': '0 1px 2px rgba(0,0,0,0.05)',
+                    'smart-inner': 'inset 0 1px 3px rgba(0,0,0,0.06)',
+                    'tab-bar': '0 -1px 0 rgba(0,0,0,0.05)',
                 },
                 backgroundImage: {
-                    'weather-gradient': 'linear-gradient(135deg, #66A6FF 0%, #89F7FE 100%)', // Lighter blue style
-                    'weather-deep': 'linear-gradient(135deg, #5B8DEF 0%, #2D6ADC 100%)', // Deep Blue from ref
+                    'paper-texture': "url('https://www.transparenttextures.com/patterns/cream-paper.png')",
+                },
+                borderRadius: {
+                    'smart': '12px',
+                    'smart-lg': '16px',
+                    'smart-btn': '8px'
                 }
             }
          }
@@ -45,8 +56,8 @@
     </script>
     <style>
       body {
-        background-color: #F2F4F8;
-        color: #2D3436;
+        background-color: #F2F2F2;
+        color: #333;
         -webkit-font-smoothing: antialiased;
         overflow: hidden;
         height: 100vh; 
@@ -61,32 +72,45 @@
         display: flex;
         flex-direction: column;
       }
-
-      /* Rain Texture Overlay for Weather Card */
-      .rain-pattern {
-          background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'%3E%3Ccircle cx='3' cy='3' r='1'/%3E%3Ccircle cx='13' cy='13' r='1'/%3E%3C/g%3E%3C/svg%3E");
-      }
-
-      /* Clock Dial Tick Marks */
-      .clock-tick {
-          position: absolute;
-          left: 50%;
-          transform-origin: bottom center;
-          background: #CBD5E0;
-      }
-
-      /* Toggle Switch Input Hidden */
-      .toggle-checkbox:checked {
-          right: 0;
-          border-color: #68D391;
-      }
-      .toggle-checkbox:checked + .toggle-label {
-          background-color: #68D391;
-      }
       
+      /* Smartisan Specific Styles */
+      .smart-dialog-mask {
+          background-color: rgba(0, 0, 0, 0.4);
+          backdrop-filter: blur(2px);
+      }
+
       .no-scrollbar::-webkit-scrollbar {
           display: none;
       }
+
+      /* Switch Component */
+      .smart-switch {
+          width: 50px;
+          height: 30px;
+          background-color: #E6E6E6;
+          border-radius: 30px;
+          position: relative;
+          transition: background-color 0.3s;
+          cursor: pointer;
+      }
+      .smart-switch.active {
+          background-color: #A0D468;
+      }
+      .smart-switch-knob {
+          width: 26px;
+          height: 26px;
+          background-color: white;
+          border-radius: 50%;
+          position: absolute;
+          top: 2px;
+          left: 2px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+          transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      }
+      .smart-switch.active .smart-switch-knob {
+          transform: translateX(20px);
+      }
+
     </style>
   <script type="importmap">
 {

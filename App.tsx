@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Icons } from './constants';
 
 // --- Types ---
@@ -17,19 +17,35 @@ const DEFAULT_OPTIONS: Option[] = [
   { id: '5', text: '炒菜' }
 ];
 
+// Expanded Holidays (Includes CN/KR examples for 2024/2025 context)
 const HOLIDAYS: Record<string, string> = {
   '01-01': '元旦',
+  '02-09': '除夕',
+  '02-10': '春节',
   '02-14': '情人节',
+  '02-24': '元宵节',
+  '03-01': '三一节(韩)',
   '03-08': '妇女节',
   '03-12': '植树节',
   '04-01': '愚人节',
+  '04-04': '清明',
+  '04-10': '国会选举(韩)',
   '05-01': '劳动节',
   '05-04': '青年节',
+  '05-05': '儿童节(韩)',
+  '05-15': '佛诞节',
   '06-01': '儿童节',
+  '06-06': '显忠日(韩)',
+  '06-10': '端午节',
   '07-01': '建党节',
   '08-01': '建军节',
+  '08-15': '光复节',
   '09-10': '教师节',
+  '09-17': '中秋节',
   '10-01': '国庆节',
+  '10-03': '开天节(韩)',
+  '10-09': '韩文日(韩)',
+  '10-11': '重阳节',
   '10-24': '程序员节',
   '12-25': '圣诞节',
 };
@@ -166,7 +182,8 @@ const FoodView = () => {
         <div className="flex flex-col h-full bg-[#F5F5F5] relative">
             {/* Header */}
             <div className="h-12 bg-[#F9F9F9] border-b border-smart-divider flex items-center justify-center shadow-sm z-10">
-                <span className="font-bold text-smart-text-main">今天吃什么</span>
+                {/* Updated Title */}
+                <span className="font-bold text-smart-text-main">命运之轮</span>
             </div>
 
             <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col items-center py-6 space-y-6">
@@ -324,9 +341,135 @@ const CalcView = () => {
     );
 };
 
+// --- Smartisan Wheel Picker Components ---
+
+const WheelColumn = ({ items, value, onChange }: { items: string[] | number[]; value: string | number; onChange: (val: any) => void }) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const itemHeight = 48; // px
+
+    // Scroll to position on mount or value change
+    useEffect(() => {
+        if (scrollRef.current) {
+            const index = items.indexOf(value as never);
+            if (index !== -1) {
+                scrollRef.current.scrollTop = index * itemHeight;
+            }
+        }
+    }, [value, items]);
+
+    return (
+        <div className="relative h-[240px] flex-1 overflow-hidden group">
+            <div 
+                ref={scrollRef}
+                className="h-full overflow-y-auto no-scrollbar snap-y snap-mandatory py-[96px]" // 96px padding top/bottom to center first/last item
+                onScroll={(e) => {
+                    // Debounced selection logic could go here for real-time updates, 
+                    // but for simplified UI we rely on click-to-select for robust demo behavior
+                    // or implement complex scroll-end detection.
+                    // For this demo, clicking an item is the primary way to "snap" logically.
+                }}
+            >
+                {items.map((item) => (
+                    <div 
+                        key={item}
+                        onClick={() => onChange(item)}
+                        className={`
+                            h-[48px] flex items-center justify-center snap-center cursor-pointer transition-colors duration-200
+                            ${item === value ? 'text-[#333] font-bold text-lg' : 'text-[#999] text-base'}
+                        `}
+                    >
+                        {item}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const DatePickerModal = ({ 
+    isOpen, 
+    onClose, 
+    onConfirm, 
+    initialDate 
+}: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onConfirm: (d: Date) => void; 
+    initialDate: Date 
+}) => {
+    const [selectedDate, setSelectedDate] = useState(initialDate);
+
+    if (!isOpen) return null;
+
+    const years = Array.from({ length: 20 }, (_, i) => 2020 + i);
+    const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    
+    // Calculate days in selected month
+    const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    const weekDayStr = selectedDate.toLocaleDateString('zh-CN', { weekday: 'long' });
+    const titleStr = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日${weekDayStr}`;
+
+    const handleConfirm = () => {
+        onConfirm(selectedDate);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center smart-dialog-mask animate-fade-in">
+            <div className="w-full bg-[#EFEFEF] rounded-t-[16px] overflow-hidden shadow-2xl animate-slide-up pb-safe">
+                {/* Header Bar */}
+                <div className="h-12 bg-white border-b border-[#E0E0E0] flex items-center justify-between px-4">
+                    <button onClick={onClose} className="p-2">
+                        <Icons.Close className="w-5 h-5 text-[#999]" />
+                    </button>
+                    <span className="font-bold text-[#333] text-sm">{titleStr}</span>
+                    <button onClick={handleConfirm} className="p-2">
+                        <div className="w-5 h-5 text-smart-green">
+                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                             </svg>
+                        </div>
+                    </button>
+                </div>
+
+                {/* Wheel Area */}
+                <div className="relative bg-[#F2F2F2] h-[240px] flex justify-center">
+                    {/* Highlight Bar (Middle) */}
+                    <div className="absolute top-[96px] left-0 right-0 h-[48px] bg-white border-t border-b border-[#E0E0E0] pointer-events-none z-0"></div>
+                    
+                    {/* Gradients Overlay */}
+                    <div className="absolute inset-0 pointer-events-none z-10 bg-gradient-to-b from-[#F2F2F2]/90 via-transparent to-[#F2F2F2]/90"></div>
+
+                    <div className="w-full max-w-sm flex relative z-20">
+                        <WheelColumn 
+                            items={years} 
+                            value={selectedDate.getFullYear()} 
+                            onChange={(y) => setSelectedDate(new Date(y, selectedDate.getMonth(), selectedDate.getDate()))} 
+                        />
+                        <WheelColumn 
+                            items={months} 
+                            value={selectedDate.getMonth() + 1} 
+                            onChange={(m) => setSelectedDate(new Date(selectedDate.getFullYear(), m - 1, Math.min(selectedDate.getDate(), new Date(selectedDate.getFullYear(), m, 0).getDate())))} 
+                        />
+                        <WheelColumn 
+                            items={days} 
+                            value={selectedDate.getDate()} 
+                            onChange={(d) => setSelectedDate(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), d))} 
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 // 3. Calendar View - Grid/Table Style
 const CalendarView = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [isPickerOpen, setIsPickerOpen] = useState(false);
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -344,7 +487,8 @@ const CalendarView = () => {
         const key = `${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const holidayName = HOLIDAYS[key];
         if (holidayName) return { text: holidayName, isHoliday: true };
-        if (month === 3 && (d === 4 || d === 5)) return { text: '清明', isHoliday: true };
+        
+        // Dynamic Lunar/Solar Term logic is complex, sticking to fixed map for demo + standard holidays
         return null;
     };
 
@@ -368,14 +512,21 @@ const CalendarView = () => {
                 {/* Card Container */}
                 <div className="bg-white rounded-smart-lg shadow-smart-card overflow-hidden">
                     
-                    {/* Header */}
-                    <div className="h-16 flex items-center justify-between px-6 border-b border-smart-divider bg-white">
+                    {/* Header - Clickable for Picker */}
+                    <div 
+                        className="h-16 flex items-center justify-between px-6 border-b border-smart-divider bg-white"
+                    >
                         <button onClick={() => changeMonth(-1)} className="p-2 rounded-full hover:bg-gray-100 text-smart-text-sub">
                              <Icons.ChevronDown className="rotate-90 w-5 h-5" />
                         </button>
-                        <div className="text-lg font-bold text-smart-text-main">
+                        
+                        <button 
+                            onClick={() => setIsPickerOpen(true)}
+                            className="text-lg font-bold text-smart-text-main px-4 py-1 rounded hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                        >
                             {year}年 {month + 1}月
-                        </div>
+                        </button>
+
                         <button onClick={() => changeMonth(1)} className="p-2 rounded-full hover:bg-gray-100 text-smart-text-sub">
                              <Icons.ChevronDown className="-rotate-90 w-5 h-5" />
                         </button>
@@ -390,7 +541,7 @@ const CalendarView = () => {
                         ))}
                     </div>
 
-                    {/* Days Grid - Resembling the Table Picker */}
+                    {/* Days Grid */}
                     <div className="grid grid-cols-7">
                         {days.map((item, idx) => (
                             <div key={idx} className="h-14 border-b border-r border-smart-divider/50 flex flex-col items-center justify-center relative">
@@ -403,7 +554,7 @@ const CalendarView = () => {
                                             {item.day}
                                         </div>
                                         {item.holiday && (
-                                            <span className="text-[9px] text-smart-red mt-0.5">{item.holiday.text}</span>
+                                            <span className="text-[9px] text-smart-red mt-0.5 transform scale-90">{item.holiday.text}</span>
                                         )}
                                     </>
                                 ) : null}
@@ -415,10 +566,18 @@ const CalendarView = () => {
                 {/* Info Text */}
                 <div className="mt-4 text-center">
                      <p className="text-xs text-smart-text-light">
-                        设置在天气、时钟、日历和浏览器应用中的日期格式
+                        点击上方日期可快速跳转
                      </p>
                 </div>
             </div>
+
+            {/* Smartisan Date Picker Modal */}
+            <DatePickerModal 
+                isOpen={isPickerOpen} 
+                onClose={() => setIsPickerOpen(false)} 
+                onConfirm={(d) => setCurrentDate(d)}
+                initialDate={currentDate}
+            />
         </div>
     );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Icons } from './constants';
+import { geminiService } from './services/geminiService';
 
 // --- Types ---
 type Tab = 'food' | 'calc' | 'calendar' | 'scan';
@@ -7,32 +8,35 @@ type Tab = 'food' | 'calc' | 'calendar' | 'scan';
 interface Option {
   id: string;
   text: string;
+  desc?: string; 
 }
 
-// Updated Default Options
+// --- Design Constants ---
+const THEME = {
+    bg: '#F5F5F5',
+    textMain: '#333333',
+    textSub: '#999999',
+    chipRedBg: '#FFF0F0',
+    chipRedText: '#D9534F',
+    chipGrayBorder: '#E1E1E1',
+    // Solid pastel colors
+    wheelColors: [
+        '#C2F0D8', // Green
+        '#C5E8D0', // Mint
+        '#FAD4D1', // Pink
+        '#FDE0B8', // Apricot
+        '#FFF5A8', // Yellow
+    ]
+};
+
 const DEFAULT_OPTIONS: Option[] = [
-  { id: '1', text: '羊肉串' }, 
-  { id: '2', text: '麻辣烫' }, 
-  { id: '3', text: '辣鸡爪' }, 
-  { id: '4', text: '火锅' }, 
-  { id: '5', text: '涮串' }
+  { id: '1', text: '火锅' }, 
+  { id: '2', text: '涮串' }, 
+  { id: '3', text: '羊肉串' }, 
+  { id: '4', text: '麻辣烫' }, 
+  { id: '5', text: '辣鸡爪' }
 ];
 
-// Pastel Palette (Low Saturation)
-const PASTEL_PALETTE = [
-  '#F9E0E0', // Red
-  '#FDECC8', // Orange
-  '#FEF9C3', // Yellow
-  '#DCFCE7', // Green
-  '#D1FAE5', // Mint
-  '#CFFAFE', // Cyan
-  '#E0F2FE', // Azure
-  '#DBEAFE', // Blue
-  '#F3E8FF', // Violet
-  '#FAE8FF'  // Purple
-];
-
-// Expanded Holidays (Includes CN/KR examples for 2024/2025 context)
 const HOLIDAYS: Record<string, string> = {
   '01-01': '元旦',
   '02-09': '除夕',
@@ -67,13 +71,20 @@ const HOLIDAYS: Record<string, string> = {
 
 // --- Sub-Components ---
 
-// 1. Food View (Smartisan Clean Style)
-const ClockWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option[]; rotation: number; isSpinning: boolean; onSpin: () => void }) => {
+// Common Header
+const Header = ({ title }: { title: string }) => (
+    <div className="h-12 flex items-center justify-center bg-[#F5F5F5] border-b border-[#E5E5E5]/50 sticky top-0 z-20 flex-none w-full">
+        <h1 className="text-base font-bold text-[#333]">{title}</h1>
+    </div>
+);
+
+// 1. Food View (Pastel Wheel Style)
+const PastelWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option[]; rotation: number; isSpinning: boolean; onSpin: () => void }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const size = 600; 
   const centerX = size / 2;
   const centerY = size / 2;
-  const radius = size / 2 - 20; 
+  const radius = size / 2 - 10; // Slightly larger radius relative to container
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -90,76 +101,77 @@ const ClockWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option
     if (options.length === 0) return;
 
     const arc = (2 * Math.PI) / options.length;
+    
+    // Use theme colors
+    const colors = THEME.wheelColors;
 
     options.forEach((opt, i) => {
       const angle = i * arc;
       ctx.save();
       
+      // 1. Draw Slice
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
       ctx.arc(centerX, centerY, radius, angle, angle + arc);
       ctx.lineTo(centerX, centerY);
-      
-      // Use random pastel colors from the palette
-      ctx.fillStyle = PASTEL_PALETTE[i % PASTEL_PALETTE.length]; 
+      ctx.fillStyle = colors[i % colors.length];
       ctx.fill();
       
-      // Fine separator lines (slightly darker to be visible on pastels)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.lineWidth = 2;
+      // 2. Draw Thin White Separator
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 2; // Thinner lines
       ctx.stroke();
 
+      // 3. Draw Text
       ctx.translate(centerX, centerY);
       ctx.rotate(angle + arc / 2);
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#555555'; // Dark gray text for contrast
-      ctx.font = '500 28px "Noto Sans SC", sans-serif'; 
-      ctx.fillText(opt.text, radius - 40, 10);
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#555'; 
+      ctx.font = 'bold 34px "Noto Sans SC", sans-serif'; 
+      
+      ctx.fillText(opt.text, radius - 40, 0);
       
       ctx.restore();
     });
-    
-    // Outer Ring
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-    ctx.strokeStyle = '#E0E0E0';
-    ctx.lineWidth = 1;
-    ctx.stroke();
 
   }, [options]);
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
-      {/* Container Shadow for Depth */}
-      <div className="absolute w-[300px] h-[300px] md:w-[380px] md:h-[380px] rounded-full bg-white shadow-smart-float flex items-center justify-center">
-      </div>
+    <div className="relative w-[280px] h-[280px] md:w-[320px] md:h-[320px] flex items-center justify-center my-4">
       
+      {/* Container with Thin White Border */}
+      <div className="absolute inset-[-4px] rounded-full bg-white border border-[#E5E5E5] shadow-sm pointer-events-none"></div>
+
+      {/* Spinning Part */}
       <div 
-        className="relative w-[300px] h-[300px] md:w-[380px] md:h-[380px] rounded-full transition-transform duration-[5000ms] ease-[cubic-bezier(0.15,0.85,0.35,1)] will-change-transform z-10 overflow-hidden"
+        className="relative w-full h-full rounded-full transition-transform duration-[5000ms] ease-[cubic-bezier(0.15,0.85,0.35,1)] will-change-transform z-10 overflow-hidden"
         style={{ transform: `rotate(${rotation}deg)` }}
       >
          <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
       </div>
 
-      {/* Central Knob - Clean Plastic Look */}
-      <div className="absolute z-20">
+      {/* Center Button (Start) */}
+      <div className="absolute z-30 inset-0 flex items-center justify-center pointer-events-none">
           <button 
             onClick={onSpin}
-            disabled={isSpinning || options.length < 2}
+            disabled={isSpinning}
             className={`
-                w-20 h-20 rounded-full flex items-center justify-center transition-transform active:scale-95
-                bg-white border border-[#E5E5E5] shadow-smart-btn
+                pointer-events-auto
+                w-[80px] h-[80px] rounded-full bg-white text-[#333] font-bold text-2xl tracking-wide
+                shadow-md
+                flex items-center justify-center
+                transition-transform active:scale-95
+                border border-gray-100
             `}
-        >
-             <span className={`text-lg font-bold ${isSpinning ? 'text-smart-red' : 'text-smart-text-main'}`}>
-                 {isSpinning ? '...' : '开始'}
-             </span>
-        </button>
+          >
+             {isSpinning ? '...' : '开始'}
+          </button>
       </div>
 
-      {/* Indicator */}
-      <div className="absolute top-[8%] z-30 pointer-events-none">
-         <div className="w-4 h-4 bg-smart-red rotate-45 transform origin-center shadow-sm rounded-[2px] border border-white"></div>
+      {/* Indicator - Red Diamond at Top */}
+      <div className="absolute -top-[14px] left-1/2 transform -translate-x-1/2 z-40">
+         <div className="w-4 h-4 bg-[#D44E45] rotate-45 rounded-[1px] shadow-sm border-[1.5px] border-white"></div>
       </div>
     </div>
   );
@@ -171,11 +183,26 @@ const FoodView = () => {
     const [isSpinning, setIsSpinning] = useState(false);
     const [winner, setWinner] = useState<Option | null>(null);
     const [inputValue, setInputValue] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isAdding && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isAdding]);
 
     const handleAddOption = () => {
         if (inputValue.trim() && options.length < 20) {
-            setOptions([...options, { id: Date.now().toString(), text: inputValue.trim() }]);
+            setOptions([
+                ...options, 
+                { 
+                    id: Date.now().toString(), 
+                    text: inputValue.trim(),
+                }
+            ]);
             setInputValue('');
+            setIsAdding(false);
         }
     };
 
@@ -185,6 +212,7 @@ const FoodView = () => {
         setWinner(null);
         const newRotation = rotation + 1800 + Math.random() * 360;
         setRotation(newRotation);
+        
         setTimeout(() => {
             const actualRotation = newRotation % 360;
             const sliceDeg = 360 / options.length;
@@ -197,52 +225,79 @@ const FoodView = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#F5F5F5] relative">
+        <div className="flex flex-col h-full w-full" style={{ backgroundColor: THEME.bg }}>
             {/* Header */}
-            <div className="h-12 bg-[#F9F9F9] border-b border-smart-divider flex items-center justify-center shadow-sm z-10">
-                {/* Updated Title */}
-                <span className="font-bold text-smart-text-main">命运之轮</span>
-            </div>
+            <Header title="命运之轮" />
 
-            <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col items-center py-6 space-y-6">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col items-center w-full overflow-x-hidden">
                 
-                {/* Wheel Section */}
-                <div className="flex-none h-[340px] md:h-[420px] w-full flex items-center justify-center">
-                    <ClockWheel options={options} rotation={rotation} isSpinning={isSpinning} onSpin={spinWheel} />
+                {/* 1. Wheel Section */}
+                <div className="w-full flex justify-center py-6 flex-none overflow-hidden">
+                    <PastelWheel options={options} rotation={rotation} isSpinning={isSpinning} onSpin={spinWheel} />
                 </div>
 
-                {/* Chips Container - Smartisan Style */}
-                <div className="w-full max-w-md px-4">
-                    <div className="bg-white rounded-smart-lg shadow-smart-card p-4">
-                        <div className="text-xs text-smart-text-sub mb-3 pl-1">选项列表</div>
-                        <div className="flex flex-wrap gap-3 mb-4">
+                {/* 2. Options List Section (Card Style) */}
+                {/* Fixed positioning: Removed flex-1 justify-end to prevent sticking to bottom on large screens. Added mt-2 for spacing (~50px from wheel). */}
+                <div className="w-full px-4 mt-2 pb-8 flex-none">
+                    <div className="bg-white rounded-[20px] p-5 shadow-sm">
+                        <div className="text-[12px] text-[#999] mb-3">选项列表 ({options.length})</div>
+                        
+                        <div className="flex flex-wrap gap-2 max-h-[240px] overflow-y-auto custom-scrollbar content-start">
                             {options.map((opt) => (
-                                <div key={opt.id} className="relative group">
-                                    <div className="px-4 py-2 bg-smart-chip-redBg text-smart-chip-redText rounded-full text-sm font-medium flex items-center gap-2 border border-transparent group-hover:border-smart-chip-redText/20 transition-all">
-                                        {opt.text}
-                                        <button 
-                                            onClick={() => setOptions(options.filter(o => o.id !== opt.id))}
-                                            className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-black/5"
-                                        >
-                                            <Icons.Close width={12} />
-                                        </button>
-                                    </div>
+                                <div 
+                                    key={opt.id} 
+                                    className="px-3 py-2 rounded-full text-[14px] flex items-center gap-2 transition-all active:scale-95"
+                                    style={{ 
+                                        backgroundColor: THEME.chipRedBg, 
+                                        color: THEME.chipRedText 
+                                    }}
+                                >
+                                    <span className="font-medium">{opt.text}</span>
+                                    <button 
+                                        onClick={() => setOptions(options.filter(o => o.id !== opt.id))}
+                                        className="w-4 h-4 flex items-center justify-center opacity-60 hover:opacity-100"
+                                    >
+                                        <Icons.Close width={12} height={12} strokeWidth={2.5} />
+                                    </button>
                                 </div>
                             ))}
-                            <div className="flex items-center">
-                                 <input
-                                    type="text"
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleAddOption()}
-                                    placeholder="+ 添加"
-                                    className="px-4 py-2 bg-white border border-smart-chip-grayBorder rounded-full text-sm text-smart-text-main placeholder:text-smart-text-light outline-none focus:border-smart-blue transition-colors w-24 focus:w-32"
-                                />
-                            </div>
+
+                            {/* Add Button / Input */}
+                            {isAdding ? (
+                                <div className="flex items-center h-[36px] px-3 rounded-full border border-smart-blue bg-white min-w-[80px]">
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleAddOption();
+                                            if (e.key === 'Escape') setIsAdding(false);
+                                        }}
+                                        onBlur={() => {
+                                            if (!inputValue) setIsAdding(false);
+                                        }}
+                                        className="w-full bg-transparent text-[14px] outline-none text-[#333]"
+                                        placeholder="输入..."
+                                    />
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => setIsAdding(true)}
+                                    className="px-4 py-2 rounded-full text-[13px] text-[#aaa] border border-[#E0E0E0] bg-white hover:bg-gray-50 flex items-center gap-1 transition-colors h-[36px]"
+                                >
+                                    <span>+ 添加</span>
+                                </button>
+                            )}
                         </div>
-                        
-                        <div className="flex justify-end pt-2 border-t border-smart-divider">
-                            <button onClick={() => setOptions(DEFAULT_OPTIONS)} className="text-xs text-smart-blue font-medium px-2 py-1 hover:bg-blue-50 rounded">
+
+                        {/* Footer Link */}
+                        <div className="flex justify-end mt-4 border-t border-[#f0f0f0] pt-3">
+                            <button 
+                                onClick={() => setOptions(DEFAULT_OPTIONS)} 
+                                className="text-[12px] text-smart-blue hover:opacity-80 font-medium"
+                            >
                                 重置默认
                             </button>
                         </div>
@@ -250,32 +305,32 @@ const FoodView = () => {
                 </div>
             </div>
 
-            {/* Smartisan Dialog Modal */}
+            {/* 3. Result Modal */}
             {winner && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 smart-dialog-mask animate-fade-in">
-                    <div className="w-full max-w-[300px] bg-white rounded-smart-lg shadow-2xl overflow-hidden animate-scale-up">
-                        <div className="pt-6 pb-4 px-6 text-center">
-                            <h3 className="text-lg font-bold text-smart-text-main mb-2">结果公示</h3>
-                            <p className="text-sm text-smart-text-sub leading-relaxed">
-                                命运之轮选择了：
-                                <br />
-                                <span className="text-xl font-bold text-smart-red mt-2 block">{winner.text}</span>
-                            </p>
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-8 smart-dialog-mask animate-fade-in">
+                    <div className="w-full max-w-[280px] bg-white rounded-[20px] overflow-hidden shadow-2xl animate-scale-up flex flex-col items-center pb-6">
+                        
+                        {/* Header Image/Icon */}
+                        <div className="w-full h-20 bg-gradient-to-br from-[#FFF8C4] to-[#FDECEC] flex items-center justify-center mb-4">
+                             <div className="text-4xl">🎉</div>
                         </div>
                         
-                        <div className="flex border-t border-smart-divider h-12">
-                            <button 
+                        <h2 className="text-[20px] font-bold text-[#333] mb-1">{winner.text}</h2>
+                        <p className="text-[12px] text-[#999] mb-6">今天就吃这个吧！</p>
+                        
+                        <div className="flex gap-3 w-full px-6">
+                             <button 
                                 onClick={() => setWinner(null)}
-                                className="flex-1 text-sm font-medium text-smart-text-sub hover:bg-gray-50 active:bg-gray-100 transition-colors border-r border-smart-divider"
-                            >
-                                再转一次
-                            </button>
-                            <button 
+                                className="flex-1 h-[40px] rounded-full text-[13px] font-medium text-[#666] bg-[#F5F5F5] hover:bg-[#E0E0E0]"
+                             >
+                                 再转一次
+                             </button>
+                             <button 
                                 onClick={() => setWinner(null)}
-                                className="flex-1 text-sm font-bold text-smart-blue hover:bg-blue-50 active:bg-blue-100 transition-colors"
-                            >
-                                欣然接受
-                            </button>
+                                className="flex-1 h-[40px] rounded-full text-[13px] font-bold text-white bg-smart-blue hover:opacity-90 shadow-sm"
+                             >
+                                 去吃！
+                             </button>
                         </div>
                     </div>
                 </div>
@@ -317,6 +372,8 @@ const CalcView = () => {
 
     return (
         <div className="flex flex-col h-full bg-[#E8E8E8]">
+            <Header title="计算器" />
+            
             {/* Screen Area */}
             <div className="h-[35%] flex flex-col justify-end p-8 pb-4">
                  <div className="text-right">
@@ -530,7 +587,8 @@ const CalendarView = () => {
 
     return (
         <div className="h-full flex flex-col bg-[#F5F5F5]">
-            <div className="p-4">
+            <Header title="日历" />
+            <div className="p-4 flex-1 overflow-y-auto">
                 {/* Card Container */}
                 <div className="bg-white rounded-smart-lg shadow-smart-card overflow-hidden">
                     
@@ -607,6 +665,7 @@ const CalendarView = () => {
 // 4. Scan View
 const ScanView = () => {
     const [status, setStatus] = useState<'camera' | 'processing' | 'result'>('camera');
+    const [ocrResult, setOcrResult] = useState<{ language: string; text: string } | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -618,22 +677,38 @@ const ScanView = () => {
         }
     }, [status]);
 
-    const handleCapture = () => {
+    const handleCapture = async () => {
+        if (!videoRef.current) return;
+        
         setStatus('processing');
-        setTimeout(() => setStatus('result'), 2000);
+        
+        try {
+            // Capture image from video
+            const canvas = document.createElement('canvas');
+            canvas.width = videoRef.current.videoWidth;
+            canvas.height = videoRef.current.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(videoRef.current, 0, 0);
+            
+            // Get base64 string without data header
+            const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+            
+            // Call Gemini
+            const result = await geminiService.recognizeImage(base64Image);
+            setOcrResult(result);
+            setStatus('result');
+        } catch (error) {
+            console.error(error);
+            setOcrResult({ language: 'Error', text: '识别失败，请重试' });
+            setStatus('result');
+        }
     };
 
     return (
         <div className="h-full flex flex-col bg-black relative">
+            <Header title="扫一扫" />
             {status === 'camera' && (
                 <>
-                    {/* Top Bar */}
-                    <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/50 to-transparent z-10 flex items-center justify-between px-6 text-white">
-                        <Icons.Flash className="w-6 h-6" />
-                        <span className="text-sm font-medium tracking-wide opacity-90">文字扫描</span>
-                        <Icons.Close className="w-6 h-6" />
-                    </div>
-
                     {/* Viewfinder */}
                     <div className="flex-1 relative bg-black flex items-center justify-center">
                          <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover opacity-80" />
@@ -671,25 +746,37 @@ const ScanView = () => {
             {status === 'processing' && (
                 <div className="flex-1 flex flex-col items-center justify-center bg-[#F5F5F5]">
                     <div className="w-10 h-10 border-2 border-smart-blue border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-sm text-smart-text-sub">正在处理...</p>
+                    <p className="text-sm text-smart-text-sub">正在识别...</p>
                 </div>
             )}
 
             {status === 'result' && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center p-6 smart-dialog-mask">
-                    <div className="w-full max-w-[320px] bg-white rounded-smart-lg shadow-2xl overflow-hidden animate-scale-up">
-                         <div className="p-6">
-                             <h3 className="text-lg font-bold text-smart-text-main mb-4">识别成功</h3>
-                             <div className="bg-[#F9F9F9] border border-smart-divider rounded-md p-4 mb-4">
-                                 <p className="text-sm text-smart-text-main leading-relaxed">
-                                     Smartisan Design 风格已应用。系统检测到图像中的文本内容。
+                    <div className="w-full max-w-[320px] bg-white rounded-smart-lg shadow-2xl overflow-hidden animate-scale-up flex flex-col max-h-[80vh]">
+                         <div className="p-6 flex flex-col h-full">
+                             <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-smart-text-main">识别结果</h3>
+                                <span className="text-xs bg-blue-50 text-smart-blue px-2 py-1 rounded-full border border-blue-100">
+                                    {ocrResult?.language || '未知语言'}
+                                </span>
+                             </div>
+                             
+                             <div className="bg-[#F9F9F9] border border-smart-divider rounded-md p-4 mb-4 flex-1 overflow-y-auto min-h-[120px]">
+                                 <p className="text-sm text-smart-text-main leading-relaxed whitespace-pre-wrap">
+                                     {ocrResult?.text || '未检测到文本'}
                                  </p>
                              </div>
-                             <div className="flex gap-3">
+                             
+                             <div className="flex gap-3 mt-auto">
                                  <button onClick={() => setStatus('camera')} className="flex-1 h-10 rounded-smart-btn bg-white border border-smart-divider text-smart-text-main font-medium text-sm hover:bg-gray-50">
-                                     取消
+                                     返回
                                  </button>
-                                 <button onClick={() => setStatus('camera')} className="flex-1 h-10 rounded-smart-btn bg-smart-blue text-white font-medium text-sm hover:bg-blue-600 shadow-sm">
+                                 <button 
+                                    onClick={() => {
+                                        if(ocrResult?.text) navigator.clipboard.writeText(ocrResult.text);
+                                    }} 
+                                    className="flex-1 h-10 rounded-smart-btn bg-smart-blue text-white font-medium text-sm hover:bg-blue-600 shadow-sm"
+                                 >
                                      复制文本
                                  </button>
                              </div>
@@ -712,14 +799,15 @@ const TabBar = ({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     ];
 
     return (
-        <div className="h-[56px] bg-white shadow-tab-bar flex items-center justify-around z-50 pb-safe">
+        // Decreased height to 84px for a shorter bar
+        <div className="h-[84px] pb-6 pt-2 bg-white shadow-tab-bar flex items-start justify-around z-50 transition-all duration-300">
             {tabs.map((t) => {
                 const isActive = active === t.id;
                 return (
                     <button 
                         key={t.id} 
                         onClick={() => onChange(t.id)}
-                        className="flex flex-col items-center justify-center w-full h-full pt-1"
+                        className="flex flex-col items-center justify-center w-full"
                     >
                         <div className={`transition-colors duration-200 ${isActive ? 'text-[#333]' : 'text-[#999]'}`}>
                             <t.icon width={22} height={22} strokeWidth={2} />
@@ -739,12 +827,12 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('food');
 
   return (
-    <div className="h-[100dvh] w-screen overflow-hidden font-sans bg-[#F2F2F2] text-[#333] flex flex-col items-center">
+    <div className="h-[100dvh] w-full overflow-hidden font-sans bg-[#F2F2F2] text-[#333] flex flex-col items-center fixed inset-0 overscroll-none">
         {/* Main Content Container */}
-        <div className="w-full h-full max-w-md bg-[#F2F2F2] flex flex-col relative shadow-2xl md:my-0">
+        <div className="w-full h-full max-w-md bg-[#F2F2F2] flex flex-col relative shadow-2xl md:my-0 overflow-hidden">
             
             {/* Viewport */}
-            <main className="flex-1 overflow-hidden relative">
+            <main className="flex-1 overflow-hidden relative flex flex-col w-full">
                 {activeTab === 'food' && <FoodView />}
                 {activeTab === 'calc' && <CalcView />}
                 {activeTab === 'calendar' && <CalendarView />}
@@ -752,7 +840,7 @@ const App: React.FC = () => {
             </main>
 
             {/* Bottom Navigation */}
-            <div className="flex-none bg-white">
+            <div className="flex-none bg-white w-full">
                 <TabBar active={activeTab} onChange={setActiveTab} />
             </div>
         </div>

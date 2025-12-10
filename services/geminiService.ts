@@ -61,6 +61,45 @@ export class GeminiService {
     return fullText;
   }
 
+  public async recognizeImage(base64Image: string): Promise<{ language: string; text: string }> {
+    const ai = getClient();
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: this.model,
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+                    { text: 'Analyze the image and extract all visible text. Identify the primary language. Output strictly valid JSON with keys "language" and "text". Do not include Markdown formatting.' }
+                ]
+            },
+            config: {
+                responseMimeType: 'application/json'
+            }
+        });
+
+        let resultText = response.text || "{}";
+        
+        // Improved JSON cleaning: Remove markdown code blocks if present
+        resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        // Try to parse, if fails, extract using regex as fallback
+        try {
+            return JSON.parse(resultText);
+        } catch (parseError) {
+             const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+             if (jsonMatch) {
+                 return JSON.parse(jsonMatch[0]);
+             }
+             throw parseError;
+        }
+
+    } catch (e) {
+        console.error("OCR Error:", e);
+        return { language: "Error", text: "识别失败，请重试。" };
+    }
+  }
+
   public resetSession() {
     this.initChat();
   }

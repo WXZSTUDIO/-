@@ -238,8 +238,8 @@ const FoodView = () => {
                 </div>
 
                 {/* 2. Options List Section (Card Style) */}
-                {/* Fixed positioning: Removed flex-1 justify-end to prevent sticking to bottom on large screens. Added mt-2 for spacing (~50px from wheel). */}
-                <div className="w-full px-4 mt-2 pb-8 flex-none">
+                {/* Added more padding bottom (pb-32) to accommodate floating tab bar */}
+                <div className="w-full px-4 mt-2 pb-32 flex-none">
                     <div className="bg-white rounded-[20px] p-5 shadow-sm">
                         <div className="text-[12px] text-[#999] mb-3">选项列表 ({options.length})</div>
                         
@@ -382,7 +382,8 @@ const CalcView = () => {
             </div>
             
             {/* Keypad Area - White card with buttons */}
-            <div className="flex-1 bg-white rounded-t-[24px] shadow-smart-float p-6 pb-2">
+            {/* Added pb-28 to avoid overlap with floating nav */}
+            <div className="flex-1 bg-white rounded-t-[24px] shadow-smart-float p-6 pb-28">
                 <div className="grid grid-cols-4 gap-4 h-full content-center">
                     {buttons.flat().map((btn, i) => {
                          const isZero = btn === '0';
@@ -588,7 +589,8 @@ const CalendarView = () => {
     return (
         <div className="h-full flex flex-col bg-[#F5F5F5]">
             <Header title="日历" />
-            <div className="p-4 flex-1 overflow-y-auto">
+            {/* Added pb-32 to scrolling container */}
+            <div className="p-4 flex-1 overflow-y-auto pb-32">
                 {/* Card Container */}
                 <div className="bg-white rounded-smart-lg shadow-smart-card overflow-hidden">
                     
@@ -724,8 +726,8 @@ const ScanView = () => {
                          </div>
                     </div>
                     
-                    {/* Controls */}
-                    <div className="h-32 bg-black flex items-center justify-around px-8 pb-8">
+                    {/* Controls - Increased height/padding to move buttons above floating nav */}
+                    <div className="h-40 pb-20 bg-black flex items-center justify-around px-8">
                         <button 
                             onClick={() => fileInputRef.current?.click()}
                             className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center text-white"
@@ -789,7 +791,7 @@ const ScanView = () => {
 };
 
 
-// 5. Tab Bar - Smartisan Style
+// 5. Tab Bar - Floating Glass Style
 const TabBar = ({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) => {
     const tabs: { id: Tab; icon: React.FC<any>; label: string }[] = [
         { id: 'food', icon: Icons.Food, label: '吃什么' },
@@ -799,25 +801,26 @@ const TabBar = ({ active, onChange }: { active: Tab; onChange: (t: Tab) => void 
     ];
 
     return (
-        // Decreased height to 84px for a shorter bar
-        <div className="h-[84px] pb-6 pt-2 bg-white shadow-tab-bar flex items-start justify-around z-50 transition-all duration-300">
-            {tabs.map((t) => {
-                const isActive = active === t.id;
-                return (
-                    <button 
-                        key={t.id} 
-                        onClick={() => onChange(t.id)}
-                        className="flex flex-col items-center justify-center w-full"
-                    >
-                        <div className={`transition-colors duration-200 ${isActive ? 'text-[#333]' : 'text-[#999]'}`}>
-                            <t.icon width={22} height={22} strokeWidth={2} />
-                        </div>
-                        <span className={`text-[10px] mt-0.5 font-medium transform scale-90 ${isActive ? 'text-[#333]' : 'text-[#999]'}`}>
-                            {t.label}
-                        </span>
-                    </button>
-                )
-            })}
+        <div className="absolute bottom-6 left-4 right-4 z-50">
+            <div className="h-[72px] bg-white/85 backdrop-blur-xl border border-white/40 shadow-2xl rounded-[24px] flex items-center justify-around px-2">
+                {tabs.map((t) => {
+                    const isActive = active === t.id;
+                    return (
+                        <button 
+                            key={t.id} 
+                            onClick={() => onChange(t.id)}
+                            className="flex flex-col items-center justify-center w-16 h-full active:scale-95 transition-transform"
+                        >
+                            <div className={`transition-all duration-300 p-1 rounded-xl ${isActive ? 'text-[#333] bg-black/5' : 'text-[#999]'}`}>
+                                <t.icon width={24} height={24} strokeWidth={isActive ? 2.5 : 2} />
+                            </div>
+                            <span className={`text-[10px] mt-0.5 font-medium ${isActive ? 'text-[#333]' : 'text-[#999]'}`}>
+                                {t.label}
+                            </span>
+                        </button>
+                    )
+                })}
+            </div>
         </div>
     );
 };
@@ -839,10 +842,8 @@ const App: React.FC = () => {
                 {activeTab === 'scan' && <ScanView />}
             </main>
 
-            {/* Bottom Navigation */}
-            <div className="flex-none bg-white w-full">
-                <TabBar active={activeTab} onChange={setActiveTab} />
-            </div>
+            {/* Bottom Navigation (Floating) */}
+            <TabBar active={activeTab} onChange={setActiveTab} />
         </div>
     </div>
   );

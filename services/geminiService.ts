@@ -6,16 +6,13 @@ const getClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
     console.warn("API_KEY is missing from environment variables.");
-    // In a real app, we might handle this more gracefully, but for now we proceed.
-    // The SDK will throw if initialized without key if strictly enforced, 
-    // or the call will fail.
   }
   return new GoogleGenAI({ apiKey: apiKey });
 };
 
 export class GeminiService {
   private chat: Chat | null = null;
-  private model: string = "gemini-2.5-flash"; // Fast model for chat
+  private model: string = "gemini-2.5-flash"; 
 
   constructor() {
     this.initChat();
@@ -59,6 +56,97 @@ export class GeminiService {
     }
 
     return fullText;
+  }
+
+  public async getKoreanNews(): Promise<{ title: string; summary: string; source: string; time: string }[]> {
+    const ai = getClient();
+    // Prompt specifically asks for raw JSON array text to parse later
+    const prompt = `
+      Search for the top 5 trending news headlines in South Korea right now (focus on breaking news, entertainment, or technology).
+      
+      Output Requirements:
+      1. Return a pure JSON Array.
+      2. Each object must have: 
+         - "title": The news title translated into Chinese.
+         - "summary": A very brief 1-sentence summary in Chinese.
+         - "source": The name of the news outlet.
+         - "time": Relative time (e.g., "1小时前").
+      3. Do NOT use markdown formatting (no \`\`\`json). Just the raw JSON string.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: this.model,
+            contents: prompt,
+            config: {
+                // Enable Google Search
+                tools: [{ googleSearch: {} }]
+            }
+        });
+
+        let resultText = response.text || "[]";
+        // Cleanup potential markdown if model ignores instruction
+        resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        try {
+            const data = JSON.parse(resultText);
+            if (Array.isArray(data)) return data;
+            return [];
+        } catch (parseError) {
+             console.warn("JSON Parse Failed, trying regex extraction", resultText);
+             const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+             if (jsonMatch) {
+                 return JSON.parse(jsonMatch[0]);
+             }
+             return [];
+        }
+
+    } catch (e) {
+        console.error("News Fetch Error:", e);
+        return [
+            { title: "无法获取新闻", summary: "请检查网络连接或API配置。", source: "系统", time: "现在" }
+        ];
+    }
+  }
+
+  public async getHistoryOnThisDay(): Promise<{ year: string; event: string }[]> {
+    const ai = getClient();
+    const today = new Date();
+    const dateStr = `${today.getMonth() + 1}月${today.getDate()}日`;
+    
+    const prompt = `
+        List 5 interesting historical events that happened on ${dateStr} (today).
+        
+        Output Requirements:
+        1. Return a pure JSON Array.
+        2. Each object must have:
+           - "year": The year (e.g., "1995").
+           - "event": A concise description in Chinese.
+        3. Prioritize globally significant or interesting cultural events.
+        4. No markdown formatting.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: this.model,
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
+
+        let resultText = response.text || "[]";
+        resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        try {
+            const data = JSON.parse(resultText);
+            return Array.isArray(data) ? data : [];
+        } catch (e) {
+             const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+             return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+        }
+    } catch (e) {
+        console.error("History Fetch Error:", e);
+        return [];
+    }
   }
 
   public async recognizeImage(base64Image: string): Promise<{ language: string; text: string }> {

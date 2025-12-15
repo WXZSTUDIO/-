@@ -79,11 +79,8 @@ export class GeminiService {
         });
 
         let resultText = response.text || "{}";
-        
-        // Improved JSON cleaning: Remove markdown code blocks if present
         resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
         
-        // Try to parse, if fails, extract using regex as fallback
         try {
             return JSON.parse(resultText);
         } catch (parseError) {
@@ -97,6 +94,59 @@ export class GeminiService {
     } catch (e) {
         console.error("OCR Error:", e);
         return { language: "Error", text: "识别失败，请重试。" };
+    }
+  }
+
+  public async extractTodos(content: { text?: string; imageBase64?: string }): Promise<string[]> {
+    const ai = getClient();
+    const prompt = `
+        You are an intelligent "Memory Potato" assistant. 
+        Your task is to extract actionable Todo items from the provided input (which could be chat history, a voice note transcript, or a photo of a note).
+        
+        Rules:
+        1. Identify distinct tasks or reminders.
+        2. Format them as short, clear, actionable phrases (e.g., "Buy milk", "Meeting with John at 3 PM").
+        3. Ignore irrelevant conversational filler.
+        4. Return STRICTLY a valid JSON Array of strings. Example: ["Task 1", "Task 2"].
+        5. If the input is in Chinese, return the tasks in Chinese.
+    `;
+
+    try {
+        const parts: any[] = [{ text: prompt }];
+        
+        if (content.imageBase64) {
+            parts.push({ inlineData: { mimeType: 'image/jpeg', data: content.imageBase64 } });
+        }
+        if (content.text) {
+            parts.push({ text: `Input Text:\n${content.text}` });
+        }
+
+        const response = await ai.models.generateContent({
+            model: this.model,
+            contents: { parts },
+            config: { responseMimeType: 'application/json' }
+        });
+
+        let resultText = response.text || "[]";
+        resultText = resultText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        try {
+            const arr = JSON.parse(resultText);
+            if (Array.isArray(arr)) {
+                return arr.map(String);
+            }
+            return [];
+        } catch (parseError) {
+             console.error("JSON Parse Error", parseError);
+             const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+             if (jsonMatch) {
+                 return JSON.parse(jsonMatch[0]);
+             }
+             return [];
+        }
+    } catch (e) {
+        console.error("Extract Todo Error:", e);
+        return [];
     }
   }
 

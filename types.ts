@@ -1,3 +1,4 @@
+import React from 'react';
 
 export type PageType = 'home' | 'video' | 'graphic' | 'contact';
 export type Language = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko';

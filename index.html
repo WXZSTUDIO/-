@@ -5,50 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>WXZ工具箱</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <script>
        tailwind.config = {
          theme: {
             extend: {
                 fontFamily: {
-                    sans: ['"Noto Sans SC"', '-apple-system', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+                    sans: ['Roboto', '-apple-system', 'Helvetica Neue', 'Arial', 'sans-serif'],
                 },
                 colors: {
-                    smart: {
-                        bg: '#F5F5F5',         // Global background
-                        card: '#FFFFFF',       // Card background
+                    one: {
+                        bg: '#F2F2F2',          // One UI Light Background
+                        surface: '#FFFFFF',      // Card Surface
+                        primary: '#3E91FF',      // Samsung Blue
+                        accent: '#00C4B4',       // Samsung Teal/Green (Calculator)
                         text: {
-                            main: '#333333',
-                            sub: '#7F7F7F',
-                            light: '#B2B2B2'
+                            main: '#000000',
+                            sub: '#868686',
+                            header: '#252525'
                         },
-                        divider: '#E5E5E5',
-                        red: '#D44E45',        // Smartisan Red
-                        blue: '#5D9CEC',       // Smartisan Blue
-                        orange: '#F0AD4E',
-                        green: '#A0D468',
-                        chip: {
-                            redBg: '#FDECEC',
-                            redText: '#D95E57',
-                            grayBg: '#FFFFFF',
-                            grayBorder: '#E1E1E1'
-                        }
+                        divider: '#DEDEDE',
+                        control: '#E8E8E8'       // Secondary button bg
                     }
                 },
                 boxShadow: {
-                    'smart-card': '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02)',
-                    'smart-float': '0 4px 12px rgba(0,0,0,0.08)',
-                    'smart-btn': '0 1px 2px rgba(0,0,0,0.05)',
-                    'smart-inner': 'inset 0 1px 3px rgba(0,0,0,0.06)',
-                    'tab-bar': '0 -1px 0 rgba(0,0,0,0.05)',
-                },
-                backgroundImage: {
-                    'paper-texture': "url('https://www.transparenttextures.com/patterns/cream-paper.png')",
+                    'one-subtle': '0 2px 10px rgba(0,0,0,0.03)',
+                    'one-float': '0 8px 30px rgba(0,0,0,0.12)',
                 },
                 borderRadius: {
-                    'smart': '12px',
-                    'smart-lg': '16px',
-                    'smart-btn': '8px'
+                    'one': '26px',              // Standard One UI Card Radius
+                    'one-sm': '18px',
+                    'one-lg': '32px'
                 }
             }
          }
@@ -57,7 +44,7 @@
     <style>
       body {
         background-color: #F2F2F2;
-        color: #333;
+        color: #000;
         -webkit-font-smoothing: antialiased;
         overflow: hidden;
         height: 100vh; 
@@ -73,45 +60,17 @@
         display: flex;
         flex-direction: column;
       }
-      
-      /* Smartisan Specific Styles */
-      .smart-dialog-mask {
-          background-color: rgba(0, 0, 0, 0.4);
-          backdrop-filter: blur(2px);
+
+      /* One UI Scrollbar */
+      .custom-scrollbar::-webkit-scrollbar {
+          width: 0px;
+          background: transparent;
       }
 
-      .no-scrollbar::-webkit-scrollbar {
-          display: none;
+      /* Toggle Switch Animation */
+      .one-switch-knob {
+          transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
       }
-
-      /* Switch Component */
-      .smart-switch {
-          width: 50px;
-          height: 30px;
-          background-color: #E6E6E6;
-          border-radius: 30px;
-          position: relative;
-          transition: background-color 0.3s;
-          cursor: pointer;
-      }
-      .smart-switch.active {
-          background-color: #A0D468;
-      }
-      .smart-switch-knob {
-          width: 26px;
-          height: 26px;
-          background-color: white;
-          border-radius: 50%;
-          position: absolute;
-          top: 2px;
-          left: 2px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-          transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-      }
-      .smart-switch.active .smart-switch-knob {
-          transform: translateX(20px);
-      }
-
     </style>
   <script type="importmap">
 {

@@ -468,17 +468,17 @@ const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
     const [mode, setMode] = useState<'edit' | 'preview'>('edit');
     const previewRef = useRef<HTMLDivElement>(null);
     const [data, setData] = useState<CallSheetData>({
-        production: 'WXZ 品牌宣传片',
-        date: '2023-10-25',
-        location: 'WXZ 创意园 A栋',
-        weather: '晴转多云 24°C',
-        nearestHospital: '市第一医院',
-        callTime: '06:30 AM',
-        shootTime: '08:00 AM',
-        wrapTime: '18:00 PM',
-        crew: '导演: Tim, 摄影: Alex, 灯光: Lee',
-        cast: '男主: 张三, 女主: 李四',
-        notes: '请全员注意安全，携带身份证件。'
+        production: '',
+        date: '',
+        location: '',
+        weather: '',
+        nearestHospital: '',
+        callTime: '',
+        shootTime: '',
+        wrapTime: '',
+        crew: '',
+        cast: '',
+        notes: ''
     });
 
     const handleDownload = () => {
@@ -524,16 +524,29 @@ const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
                                      <label className="block text-xs font-bold text-gray-500 mb-1.5">通告标题</label>
                                      <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.production} onChange={e=>setData({...data, production: e.target.value})} />
                                  </div>
-                                 <div className="grid grid-cols-2 gap-4">
-                                     <div>
-                                         <label className="block text-xs font-bold text-gray-500 mb-1.5">拍摄日期</label>
-                                         <input type="date" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.date} onChange={e=>setData({...data, date: e.target.value})} />
-                                     </div>
+                                 
+                                 {/* Date Row */}
+                                 <div>
+                                      <label className="block text-xs font-bold text-gray-500 mb-1.5">拍摄日期</label>
+                                      <input type="date" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.date} onChange={e=>setData({...data, date: e.target.value})} />
+                                 </div>
+
+                                 {/* Times Row - 3 columns */}
+                                 <div className="grid grid-cols-3 gap-3">
                                      <div>
                                          <label className="block text-xs font-bold text-gray-500 mb-1.5">集合时间</label>
-                                         <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.callTime.replace(' AM','').replace(' PM','')} onChange={e=>setData({...data, callTime: e.target.value})} />
+                                         <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-3 text-sm font-bold outline-none text-center" value={data.callTime} onChange={e=>setData({...data, callTime: e.target.value})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-xs font-bold text-gray-500 mb-1.5">开机时间</label>
+                                         <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-3 text-sm font-bold outline-none text-center" value={data.shootTime} onChange={e=>setData({...data, shootTime: e.target.value})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-xs font-bold text-gray-500 mb-1.5">收工时间</label>
+                                         <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-2 py-3 text-sm font-bold outline-none text-center" value={data.wrapTime} onChange={e=>setData({...data, wrapTime: e.target.value})} />
                                      </div>
                                  </div>
+
                                  <div>
                                      <label className="block text-xs font-bold text-gray-500 mb-1.5">拍摄地点</label>
                                      <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.location} onChange={e=>setData({...data, location: e.target.value})} />
@@ -541,6 +554,10 @@ const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
                                  <div>
                                      <label className="block text-xs font-bold text-gray-500 mb-1.5">天气</label>
                                      <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.weather} onChange={e=>setData({...data, weather: e.target.value})} />
+                                 </div>
+                                 <div>
+                                      <label className="block text-xs font-bold text-gray-500 mb-1.5">最近医院</label>
+                                      <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.nearestHospital} onChange={e=>setData({...data, nearestHospital: e.target.value})} />
                                  </div>
                              </div>
                          </div>
@@ -823,13 +840,6 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                      <span className="text-[10px] font-bold text-gray-500">下一镜</span>
                  </button>
 
-                 <button className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
-                     <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-gray-600 border border-gray-200 shadow-sm">
-                         <UI.List width={24}/>
-                     </div>
-                     <span className="text-[10px] font-bold text-gray-500">镜头详情</span>
-                 </button>
-
                  <button onClick={onBack} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
                      <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-gray-600 border border-gray-200 shadow-sm">
                          <UI.Power width={24}/>
@@ -888,7 +898,7 @@ const MoreAppsView = () => {
                     if (response === 'granted') {
                         setHasPermission(true);
                     } else {
-                        alert('Permission denied');
+                        alert('无法获取指南针权限，请在设置中开启');
                     }
                 })
                 .catch(console.error);
@@ -1115,6 +1125,7 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [activeControl, setActiveControl] = useState<string | null>(null);
+    const [hasCamPermission, setHasCamPermission] = useState<boolean | null>(null);
     
     const [params, setParams] = useState({
         iso: 800,
@@ -1124,13 +1135,32 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         ev: 0.0
     });
 
+    const initCamera = useCallback(() => {
+        if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
+            .then(s => { 
+                if (videoRef.current) videoRef.current.srcObject = s; 
+                setHasCamPermission(true);
+            })
+            .catch(err => {
+                console.error("Camera Error:", err);
+                setHasCamPermission(false);
+            });
+        } else {
+             setHasCamPermission(false);
+        }
+    }, []);
+
     useEffect(() => {
         let stream: MediaStream | null = null;
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
-            .then(s => { stream = s; if (videoRef.current) videoRef.current.srcObject = s; })
-            .catch(console.error);
-        return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
-    }, []);
+        initCamera();
+        return () => { 
+            if (videoRef.current && videoRef.current.srcObject) {
+                const s = videoRef.current.srcObject as MediaStream;
+                s.getTracks().forEach(t => t.stop());
+            }
+        };
+    }, [initCamera]);
 
     const controls = [
         { id: 'flip', label: '前置', icon: Icons.Refresh },
@@ -1164,6 +1194,19 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         if(!activeControl) return;
         if(activeControl === 'shutter') setParams({...params, shutter: `1/${val}`});
         else setParams({...params, [activeControl]: val});
+    }
+
+    if (hasCamPermission === false) {
+        return (
+            <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center text-white p-6 text-center">
+                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4 text-red-500">
+                    <Icons.Video width={32}/>
+                </div>
+                <h3 className="text-xl font-bold mb-2">无法访问相机</h3>
+                <p className="text-gray-400 text-sm mb-6">请检查浏览器权限设置，并允许访问相机。</p>
+                <button onClick={initCamera} className="bg-[#FCD34D] text-black px-6 py-2 rounded-lg font-bold text-sm">重试</button>
+            </div>
+        );
     }
 
     return (

@@ -2,6 +2,7 @@
   "name": "WXZ工具箱",
   "description": "Professional photography and videography portfolio featuring commercial works, visual design, and brand storytelling.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

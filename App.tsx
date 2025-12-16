@@ -272,23 +272,71 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
     };
 
     const handleImport = () => {
-        const lines = importText.trim().split('\n');
+        if (!importText.trim()) return;
+
+        const lines = importText.trim().split('\n').filter(l => l.trim());
         const newShots: Shot[] = lines.map((line, idx) => {
-            const cols = line.split(/\t|,|，/);
+            let cols: string[] = [];
+            // Excel/Sheets uses tabs. CSV uses commas.
+            // Check for tabs first as it is the most reliable structure for pasted tables.
+            if (line.indexOf('\t') !== -1) {
+                cols = line.split('\t');
+            } else {
+                // Fallback to comma/Chinese comma
+                cols = line.split(/,|，/);
+            }
+            
+            // Clean items
+            cols = cols.map(c => c.trim());
+
+            // Default Mapping: Scene | Shot | Content | Type
+            // If the user pastes single column, assume it is Content.
+            // If 2 columns: Shot | Content
+            // If 3 columns: Scene | Shot | Content
+            // If 4+: Scene | Shot | Content | Type
+
+            let scene = '';
+            let shotNo = '';
+            let content = '';
+            let type = 'WS';
+
+            if (cols.length === 1) {
+                content = cols[0];
+            } else if (cols.length === 2) {
+                shotNo = cols[0];
+                content = cols[1];
+            } else if (cols.length === 3) {
+                scene = cols[0];
+                shotNo = cols[1];
+                content = cols[2];
+            } else {
+                scene = cols[0];
+                shotNo = cols[1];
+                content = cols[2];
+                type = cols[3] || 'WS';
+            }
+
+            // Fallback generation
+            if (!shotNo) shotNo = (shots.length + 1 + idx).toString();
+            if (!content) content = '导入内容';
+
             return {
                 id: Date.now().toString() + idx,
-                shotNo: cols[1] || (shots.length + 1 + idx).toString(),
-                scene: cols[0] || '',
+                shotNo: shotNo,
+                scene: scene,
                 duration: '3s',
-                content: cols[2] || cols[0] || '导入内容',
+                content: content,
                 notes: '',
-                type: cols[3] || 'WS',
+                type: type,
                 isChecked: false
             };
         });
-        setShots([...shots, ...newShots]);
-        setShowImport(false);
-        setImportText('');
+
+        if (newShots.length > 0) {
+            setShots([...shots, ...newShots]);
+            setShowImport(false);
+            setImportText('');
+        }
     };
 
     return (
@@ -647,6 +695,32 @@ const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
 };
 
 // 5. CLAPPER VIEW (UPDATED ANIMATION & BUTTONS & DEFAULTS)
+// Helper for numeric inputs with arrows
+const NumberInput = ({ value, onChange, label }: { value: string, onChange: (v: string) => void, label: string }) => {
+    const handleInc = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange((parseInt(value || '1') + 1).toString());
+    }
+    const handleDec = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChange(Math.max(1, parseInt(value || '1') - 1).toString());
+    }
+    return (
+        <div className="bg-white p-4 h-28 flex flex-col justify-center relative group active:bg-gray-50 transition-colors cursor-pointer select-none">
+             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                 <button onClick={handleInc} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-black active:bg-gray-200"><UI.ChevronDown className="rotate-180 w-5 h-5"/></button>
+                 <button onClick={handleDec} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-black active:bg-gray-200"><UI.ChevronDown className="w-5 h-5"/></button>
+             </div>
+             <input 
+                className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1 text-center pointer-events-none"
+                value={value}
+                readOnly
+             />
+             <div className="text-[10px] font-bold text-gray-400 uppercase text-center">{label}</div>
+        </div>
+    )
+}
+
 const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project[] }) => {
     // Helper for today's date
     const getToday = () => {
@@ -670,11 +744,14 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
     });
     
     const [isClapped, setIsClapped] = useState(false);
+    const [showFullscreen, setShowFullscreen] = useState(false);
     const [showProjectSelect, setShowProjectSelect] = useState(false);
 
     const handleClap = () => {
         setIsClapped(true);
-        setTimeout(() => setIsClapped(false), 200); // Reset animation
+        // Enter fullscreen mode after clap or directly
+        setShowFullscreen(true);
+        setTimeout(() => setIsClapped(false), 200); 
     };
 
     const handleNextShot = () => {
@@ -682,12 +759,98 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
         setSlate({...slate, shot: nextShot, take: '1'});
     };
 
+    // Fullscreen Slate Component
+    const FullscreenSlate = () => {
+        const [animate, setAnimate] = useState(false);
+        const [time, setTime] = useState(new Date().toLocaleTimeString());
+
+        useEffect(() => {
+             // Initial clap animation
+             setTimeout(() => setAnimate(true), 100);
+             // Clock
+             const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
+             return () => clearInterval(t);
+        }, []);
+
+        const triggerClap = () => {
+            setAnimate(false);
+            setTimeout(() => setAnimate(true), 100);
+        };
+
+        return (
+            <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center cursor-pointer" onClick={triggerClap}>
+                 {/* Close Button */}
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); setShowFullscreen(false); }}
+                    className="absolute top-8 right-8 z-50 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-md"
+                 >
+                     <Icons.Close width={32} />
+                 </button>
+                 
+                 <div className="w-full max-w-4xl aspect-[4/3] bg-white rounded-3xl shadow-2xl relative select-none transform scale-90 md:scale-100 origin-center border-[8px] border-[#1a1a1a]">
+                     {/* Clapper Stick */}
+                     <div className="absolute -top-[120px] left-0 right-0 h-[120px]">
+                         {/* Static Part */}
+                         <div className="absolute bottom-0 right-0 w-[10%] h-full bg-white border-b-8 border-[#1a1a1a] flex">
+                              <div className="w-full h-full bg-[repeating-linear-gradient(135deg,#000,#000_20px,#fff_20px,#fff_40px)]"></div>
+                         </div>
+                         {/* Moving Part */}
+                         <div 
+                            className={`absolute bottom-0 left-0 w-full h-full bg-white border-b-8 border-[#1a1a1a] origin-bottom-right transition-transform duration-100 ease-in flex overflow-hidden rounded-t-lg z-20 ${animate ? 'rotate-0' : '-rotate-[25deg]'}`}
+                         >
+                              <div className="w-full h-full bg-[repeating-linear-gradient(135deg,#000,#000_30px,#fff_30px,#fff_60px)]"></div>
+                         </div>
+                     </div>
+                     
+                     {/* Board Content */}
+                     <div className="h-full p-8 flex flex-col">
+                          <div className="border-b-[4px] border-black pb-4 mb-4">
+                               <h1 className="text-6xl font-black text-center uppercase tracking-tight truncate">{slate.prodTitle}</h1>
+                          </div>
+                          
+                          <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4">
+                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center">
+                                   <span className="text-2xl font-bold text-gray-500 uppercase">SCENE</span>
+                                   <span className="text-8xl font-black font-mono">{slate.scene}</span>
+                               </div>
+                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center">
+                                   <span className="text-2xl font-bold text-gray-500 uppercase">TAKE</span>
+                                   <span className="text-8xl font-black font-mono">{slate.take}</span>
+                               </div>
+                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center relative overflow-hidden">
+                                   <span className="text-2xl font-bold text-gray-500 uppercase">ROLL</span>
+                                   <span className="text-7xl font-black font-mono">{slate.roll}</span>
+                               </div>
+                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center">
+                                   <span className="text-2xl font-bold text-gray-500 uppercase">SHOT</span>
+                                   <span className="text-7xl font-black font-mono">{slate.shot}</span>
+                               </div>
+                          </div>
+
+                          <div className="mt-8 flex justify-between items-end">
+                               <div>
+                                   <div className="text-2xl font-bold">DIRECTOR: {slate.director}</div>
+                                   <div className="text-2xl font-bold">CAMERA: {slate.camera}</div>
+                               </div>
+                               <div className="text-right">
+                                   <div className="text-xl font-bold text-gray-500">{slate.date}</div>
+                                   <div className="text-4xl font-mono font-bold text-red-600">{time}</div>
+                               </div>
+                          </div>
+                     </div>
+                 </div>
+            </div>
+        )
+    };
+
     return (
-        <div className="h-full bg-[#09090b] flex flex-col items-center justify-between font-sans relative overflow-hidden">
-             
+        <div className="h-full bg-[#09090b] flex flex-col items-center justify-between font-sans relative">
+             {/* Fullscreen Overlay */}
+             {showFullscreen && <FullscreenSlate />}
+
              {/* Clapperboard Container */}
              <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center p-4">
-                <div className="w-full bg-white rounded-2xl shadow-2xl shadow-black/50 border border-gray-800 relative select-none">
+                <div className="w-full bg-white rounded-2xl shadow-2xl shadow-black/50 border border-gray-800 relative select-none z-20">
                      
                      {/* 1. Header Stripe (Animated) */}
                      <div 
@@ -709,7 +872,7 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
 
                      {/* 2. Main Content */}
                      <div className="p-6 relative">
-                         {/* Production Title - Elevated Z-Index */}
+                         {/* Production Title - Elevated Z-Index for Dropdown */}
                          <div className="mb-6 border-b border-gray-100 pb-4 relative z-50">
                              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">片名 PRODUCTION</div>
                              <button 
@@ -722,29 +885,27 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                                 <UI.ChevronDown width={24} className="text-gray-300 group-hover:text-[#FCD34D] transition-colors"/>
                              </button>
                              
-                             {/* Dropdown - Adjusted positioning */}
+                             {/* Dropdown - Fixed Z-index and Positioning */}
                              {showProjectSelect && (
-                                 <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up text-black">
-                                     <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                         {projects.length > 0 ? (
-                                             projects.map(p => (
-                                                 <button
-                                                    key={p.id}
-                                                    onClick={() => {
-                                                        setSlate({...slate, prodTitle: p.title});
-                                                        setShowProjectSelect(false);
-                                                    }}
-                                                    className="w-full text-left px-4 py-3 hover:bg-yellow-50 font-bold text-sm text-gray-800 border-b border-gray-50 last:border-0"
-                                                 >
-                                                     {p.title}
-                                                 </button>
-                                             ))
-                                         ) : (
-                                             <div className="px-4 py-3 text-sm text-gray-400 text-center">
-                                                 暂无项目，请先去创建
-                                             </div>
-                                         )}
-                                     </div>
+                                 <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up text-black z-[100] max-h-48 overflow-y-auto custom-scrollbar">
+                                     {projects.length > 0 ? (
+                                         projects.map(p => (
+                                             <button
+                                                key={p.id}
+                                                onClick={() => {
+                                                    setSlate({...slate, prodTitle: p.title});
+                                                    setShowProjectSelect(false);
+                                                }}
+                                                className="w-full text-left px-4 py-3 hover:bg-yellow-50 font-bold text-sm text-gray-800 border-b border-gray-50 last:border-0"
+                                             >
+                                                 {p.title}
+                                             </button>
+                                         ))
+                                     ) : (
+                                         <div className="px-4 py-3 text-sm text-gray-400 text-center">
+                                             暂无项目，请先去创建
+                                         </div>
+                                     )}
                                  </div>
                              )}
                              
@@ -756,49 +917,23 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
 
                          {/* Grid - Row 1: Roll & Scene - Lower Z-Index */}
                          <div className="grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 mb-px relative z-10">
-                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
-                                 <input 
-                                    className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
-                                    value={slate.roll}
-                                    onChange={(e)=>setSlate({...slate, roll: e.target.value})}
-                                 />
-                                 <div className="text-[10px] font-bold text-gray-400 uppercase">ROLL 卷号</div>
-                             </div>
-                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
-                                 <input 
-                                    className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
-                                    value={slate.scene}
-                                    onChange={(e)=>setSlate({...slate, scene: e.target.value})}
-                                 />
-                                 <div className="text-[10px] font-bold text-gray-400 uppercase">SCENE 场号</div>
-                             </div>
+                             <NumberInput label="ROLL 卷号" value={slate.roll} onChange={(v)=>setSlate({...slate, roll: v})} />
+                             <NumberInput label="SCENE 场号" value={slate.scene} onChange={(v)=>setSlate({...slate, scene: v})} />
                          </div>
 
                          {/* Grid - Row 2: Shot, Take, Camera - Lower Z-Index */}
                          <div className="grid grid-cols-3 gap-px bg-gray-100 border border-gray-100 relative z-10">
+                             <NumberInput label="SHOT 镜号" value={slate.shot} onChange={(v)=>setSlate({...slate, shot: v})} />
+                             <NumberInput label="TAKE 次数" value={slate.take} onChange={(v)=>setSlate({...slate, take: v})} />
+                             
+                             {/* Camera is typically letters, so keep text input but maybe simple toggle A/B/C? For now Keep standard input behavior for Cam */}
                              <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
                                  <input 
-                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
-                                     value={slate.shot}
-                                     onChange={(e)=>setSlate({...slate, shot: e.target.value})}
-                                 />
-                                 <div className="text-[10px] font-bold text-gray-400 uppercase">SHOT 镜号</div>
-                             </div>
-                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
-                                 <input 
-                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
-                                     value={slate.take}
-                                     onChange={(e)=>setSlate({...slate, take: e.target.value})}
-                                 />
-                                 <div className="text-[10px] font-bold text-gray-400 uppercase">TAKE 次数</div>
-                             </div>
-                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
-                                 <input 
-                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1 text-center"
                                      value={slate.camera}
                                      onChange={(e)=>setSlate({...slate, camera: e.target.value})}
                                  />
-                                 <div className="text-[10px] font-bold text-gray-400 uppercase">CAM 机位</div>
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase text-center">CAM 机位</div>
                              </div>
                          </div>
 
@@ -822,7 +957,7 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
              </div>
 
              {/* Bottom Action Bar */}
-             <div className="w-full bg-[#18181b] pb-[90px] pt-6 px-6 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.5)] rounded-t-3xl z-10 border-t border-white/5">
+             <div className="w-full bg-[#18181b] pb-[90px] pt-6 px-6 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.5)] rounded-t-3xl z-10 border-t border-white/5 relative">
                  <button onClick={handleClap} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
                      <div className="w-16 h-16 rounded-full bg-[#FFC107] flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
                          <UI.Clapper width={28}/>
@@ -863,8 +998,23 @@ const MoreAppsView = () => {
     const [levelData, setLevelData] = useState({ x: 0, y: 0 });
     
     // Helpers
-    const openApp = (id: string) => {
-        if(id === 'food') {
+    const openApp = (tool: any) => {
+        if (tool.url) {
+            // Attempt to open native app scheme first, then fallback to web
+            // This is a simple implementation. In a real PWA or Native wrapper, specific intent handling is needed.
+            if (tool.scheme) {
+                 window.location.href = tool.scheme;
+                 // Fallback if scheme fails (browser often shows error or does nothing, hard to detect in pure web without timeout hack)
+                 setTimeout(() => {
+                     window.open(tool.url, '_blank');
+                 }, 1500);
+            } else {
+                 window.open(tool.url, '_blank');
+            }
+            return;
+        }
+
+        if(tool.id === 'food') {
             const foods = ['火锅', '烧烤', '麻辣烫', '汉堡', '披萨', '日料', '韩料', '轻食', '牛肉面', '炒饭'];
             let i = 0;
             const interval = setInterval(() => {
@@ -873,10 +1023,10 @@ const MoreAppsView = () => {
                 if(i > 20) clearInterval(interval);
             }, 50);
             setActiveApp('food');
-        } else if (id === 'calc') {
+        } else if (tool.id === 'calc') {
             setCalcDisplay('0');
             setActiveApp('calculator');
-        } else if (id === 'level') {
+        } else if (tool.id === 'level') {
             setActiveApp('level');
         }
     };
@@ -972,16 +1122,13 @@ const MoreAppsView = () => {
         </div>
     );
 
-    const tools = [
+    const allTools = [
         { id: 'food', label: '今天吃什么', icon: UI.Food, color: 'bg-orange-500/10 text-orange-400' },
         { id: 'calc', label: '计算器', icon: UI.Calculator, color: 'bg-white/5 text-gray-400' },
         { id: 'level', label: '水平仪', icon: UI.Level, color: 'bg-blue-500/10 text-blue-400' },
-    ];
-
-    const externalApps = [
-        { id: 'creators', label: "Creators' App", icon: UI.Wifi, color: 'bg-purple-500/10 text-purple-400', url: 'https://creatorscloud.sony.net/' },
-        { id: 'ronin', label: 'DJI Ronin', icon: UI.Cpu, color: 'bg-gray-500/10 text-gray-400', url: 'https://www.dji.com/ronin-app' },
-        { id: 'monitor', label: 'Monitor+', icon: UI.Monitor, color: 'bg-orange-500/10 text-orange-400', url: 'https://monitorplus.cc/' },
+        { id: 'creators', label: "Creators' App", icon: UI.Wifi, color: 'bg-purple-500/10 text-purple-400', url: 'https://creatorscloud.sony.net/', scheme: 'creatorscloud://' },
+        { id: 'ronin', label: 'DJI Ronin', icon: UI.Cpu, color: 'bg-gray-500/10 text-gray-400', url: 'https://www.dji.com/ronin-app', scheme: 'djironin://' },
+        { id: 'monitor', label: 'Monitor+', icon: UI.Monitor, color: 'bg-orange-500/10 text-orange-400', url: 'https://monitorplus.cc/', scheme: 'monitorplus://' },
     ];
 
     const [showThanks, setShowThanks] = useState(false);
@@ -992,27 +1139,13 @@ const MoreAppsView = () => {
             
             <div className="mb-8">
                 <h3 className="text-xs font-bold text-gray-500 uppercase mb-4 tracking-wider">实用工具</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {tools.map(tool => (
-                        <button key={tool.id} onClick={()=>openApp(tool.id)} className="bg-[#18181b] p-4 rounded-xl border border-white/5 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {allTools.map(tool => (
+                        <button key={tool.id} onClick={()=>openApp(tool)} className="bg-[#18181b] p-4 rounded-xl border border-white/5 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color}`}>
                                 <tool.icon width={20} />
                             </div>
                             <span className="text-sm font-bold text-gray-300">{tool.label}</span>
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className="mb-8">
-                <h3 className="text-xs font-bold text-gray-500 uppercase mb-4 tracking-wider">设备连接</h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {externalApps.map(app => (
-                        <button key={app.id} onClick={()=>window.open(app.url, '_blank')} className="bg-[#18181b] p-4 rounded-xl border border-white/5 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${app.color}`}>
-                                <app.icon width={20} />
-                            </div>
-                            <span className="text-sm font-bold text-gray-300">{app.label}</span>
                         </button>
                     ))}
                 </div>
@@ -1062,17 +1195,7 @@ const MoreAppsView = () => {
 const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: string) => void }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isStarted, setIsStarted] = useState(false);
-    const [isRecording, setIsRecording] = useState(false);
-    const [activeControl, setActiveControl] = useState<string | null>(null);
     const [hasCamPermission, setHasCamPermission] = useState<boolean | null>(null);
-    
-    const [params, setParams] = useState({
-        iso: 800,
-        shutter: '1/50',
-        wb: 5600,
-        focus: 50,
-        ev: 0.0
-    });
 
     const initCamera = useCallback(() => {
         if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -1090,6 +1213,15 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         }
     }, []);
 
+    const stopCamera = useCallback(() => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+            videoRef.current.srcObject = null;
+        }
+        setIsStarted(false);
+    }, []);
+
     // Only init camera if started is true
     useEffect(() => {
         if (isStarted) {
@@ -1103,60 +1235,30 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         };
     }, [isStarted, initCamera]);
 
-    const controls = [
-        { id: 'flip', label: '前置', icon: Icons.Refresh },
-        { id: 'focus', label: '对焦', icon: Icons.Focus, adjustable: true },
-        { id: 'wb', label: '白平衡', icon: Icons.Sun, adjustable: true },
-        { id: 'iso', label: '感光', icon: Icons.Aperture, adjustable: true },
-        { id: 'shutter', label: '快门速度', icon: Icons.Shutter, adjustable: true },
-        { id: 'ev', label: '曝光补偿', icon: Icons.Exposure, adjustable: true },
-        { id: 'settings', label: '设置', icon: Icons.Settings },
-    ];
-
-    const handleControlClick = (id: string) => {
-        if(id === 'flip') return;
-        setActiveControl(activeControl === id ? null : id);
-    };
-
-    const getSliderConfig = (id: string) => {
-        switch(id) {
-            case 'iso': return { min: 100, max: 6400, step: 100, val: params.iso, label: `ISO ${params.iso}` };
-            case 'wb': return { min: 2000, max: 8000, step: 100, val: params.wb, label: `${params.wb}K` };
-            case 'focus': return { min: 0, max: 100, step: 1, val: params.focus, label: `Focus ${params.focus}` };
-            case 'ev': return { min: -3, max: 3, step: 0.1, val: params.ev, label: `${params.ev > 0 ? '+' : ''}${params.ev.toFixed(1)} EV` };
-            case 'shutter': return { min: 1, max: 1000, step: 10, val: parseInt(params.shutter.split('/')[1] || '50'), label: params.shutter };
-            default: return null;
-        }
-    };
-
-    const activeSlider = activeControl ? getSliderConfig(activeControl) : null;
-
-    const updateParam = (val: number) => {
-        if(!activeControl) return;
-        if(activeControl === 'shutter') setParams({...params, shutter: `1/${val}`});
-        else setParams({...params, [activeControl]: val});
-    }
-
-    // --- State 1: Not Started (Explanation Screen) ---
+    // --- State 1: Not Started (Explanation Screen - iOS Dark Mode) ---
     if (!isStarted) {
         return (
-            <div className="fixed inset-0 bg-[#09090b] z-50 flex flex-col items-center justify-center text-white p-8 text-center pb-[90px]">
-                <div className="w-24 h-24 rounded-full bg-[#18181b] border border-white/10 flex items-center justify-center mb-8 shadow-2xl">
+            <div className="fixed inset-0 bg-[#000000] z-50 flex flex-col items-center justify-center text-white p-8 text-center pb-[90px]">
+                {/* Empty State Icon using System Gray 5ish background */}
+                <div className="w-24 h-24 rounded-full bg-[#2C2C2E] flex items-center justify-center mb-8 shadow-2xl">
                     <Icons.Viewfinder width={48} className="text-[#FCD34D]"/>
                 </div>
-                <h1 className="text-2xl font-black mb-3 tracking-tight">开启专业取景器</h1>
-                <p className="text-gray-400 text-sm mb-8 leading-relaxed max-w-xs">
+                {/* Title: iOS Label (White) */}
+                <h1 className="text-2xl font-black mb-3 tracking-tight text-white">开启专业取景器</h1>
+                {/* Description: iOS Secondary Label (Gray) */}
+                <p className="text-[#EBEBF5]/60 text-sm mb-8 leading-relaxed max-w-xs font-medium">
                     WXZ 工具箱需要调用您的相机权限，以提供实时构图参考线、模拟曝光预览及拍摄辅助功能。
                 </p>
                 <div className="flex flex-col gap-3 w-full max-w-xs">
                     <button 
                         onClick={() => setIsStarted(true)} 
-                        className="bg-[#FCD34D] text-black w-full py-4 rounded-xl font-bold text-sm hover:bg-[#fbbf24] transition-colors flex items-center justify-center gap-2"
+                        className="bg-[#FCD34D] text-black w-full py-3.5 rounded-xl font-bold text-sm hover:bg-[#FFD60A] active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
                         <Icons.Video width={18}/>
                         允许访问并开启
                     </button>
-                    <p className="text-[10px] text-gray-600">
+                    {/* Footnote: iOS Tertiary Label */}
+                    <p className="text-[10px] text-[#EBEBF5]/30">
                         仅用于本地取景，不会上传任何画面。
                     </p>
                 </div>
@@ -1167,96 +1269,52 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
     // --- State 2: Error ---
     if (hasCamPermission === false) {
         return (
-            <div className="fixed inset-0 bg-black z-50 flex flex-col items-center justify-center text-white p-6 text-center">
-                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4 text-red-500">
+            <div className="fixed inset-0 bg-[#000000] z-50 flex flex-col items-center justify-center text-white p-6 text-center">
+                <div className="w-16 h-16 rounded-full bg-[#1C1C1E] flex items-center justify-center mb-4 text-red-500">
                     <Icons.Video width={32}/>
                 </div>
                 <h3 className="text-xl font-bold mb-2">无法访问相机</h3>
-                <p className="text-gray-400 text-sm mb-6">请检查浏览器权限设置，并允许访问相机。</p>
+                <p className="text-[#EBEBF5]/60 text-sm mb-6">请检查浏览器权限设置，并允许访问相机。</p>
                 <button onClick={initCamera} className="bg-[#FCD34D] text-black px-6 py-2 rounded-lg font-bold text-sm">重试</button>
             </div>
         );
     }
 
-    // --- State 3: Active Viewfinder ---
+    // --- State 3: Active Viewfinder (Pure & Clean) ---
     return (
         <div className="fixed inset-0 bg-black z-50 flex flex-col text-white font-sans overflow-hidden pb-[90px]">
-            {/* Top Toolbar */}
-            <div className="flex justify-between px-4 pt-6 pb-4 bg-black/60 backdrop-blur-md z-30 overflow-x-auto scrollbar-hide">
-                {controls.map(c => (
-                    <button 
-                        key={c.id} 
-                        onClick={() => handleControlClick(c.id)}
-                        className={`flex flex-col items-center gap-1 min-w-[56px] flex-shrink-0 ${activeControl === c.id ? 'text-[#FCD34D]' : 'text-white'}`}
-                    >
-                        <c.icon width={24} strokeWidth={activeControl === c.id ? 2.5 : 2}/>
-                        <span className="text-[10px] font-bold tracking-tight whitespace-nowrap">{c.label}</span>
-                    </button>
-                ))}
-            </div>
-
             {/* Viewfinder Area */}
-            <div className="flex-1 relative bg-[#1a1a1a] flex items-center justify-center overflow-hidden">
+            <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
                  
                  {/* Professional Grid Overlay (Rule of Thirds + Center) */}
                  <div className="absolute inset-0 pointer-events-none">
-                     {/* Thirds Lines */}
+                     {/* Thirds Lines - Subtle White Opacity */}
                      <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-                        <div className="border-r border-white/30 drop-shadow-md"></div>
-                        <div className="border-r border-white/30 drop-shadow-md"></div>
-                        <div className="col-start-1 row-start-2 border-t border-white/30 drop-shadow-md col-span-3"></div>
-                        <div className="col-start-1 row-start-3 border-t border-white/30 drop-shadow-md col-span-3"></div>
+                        <div className="border-r border-white/20 drop-shadow-sm"></div>
+                        <div className="border-r border-white/20 drop-shadow-sm"></div>
+                        <div className="col-start-1 row-start-2 border-t border-white/20 drop-shadow-sm col-span-3"></div>
+                        <div className="col-start-1 row-start-3 border-t border-white/20 drop-shadow-sm col-span-3"></div>
                      </div>
-                     {/* Center Crosshair (Subtle) */}
-                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 opacity-50">
+                     {/* Center Crosshair */}
+                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 opacity-70">
                          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-[#FCD34D]"></div>
                          <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-[#FCD34D]"></div>
                      </div>
                  </div>
 
-                 {/* Active Slider Overlay */}
-                 {activeSlider && (
-                    <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur rounded-2xl p-4 animate-slide-up z-20 border border-white/10">
-                        <div className="flex justify-between text-xs font-bold mb-2 text-[#FCD34D]">
-                            <span className="uppercase">{activeControl}</span>
-                            <span>{activeSlider.label}</span>
-                        </div>
-                        <input 
-                            type="range" 
-                            min={activeSlider.min} 
-                            max={activeSlider.max} 
-                            step={activeSlider.step}
-                            value={activeSlider.val}
-                            onChange={(e) => updateParam(parseFloat(e.target.value))}
-                            className="w-full h-6 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FCD34D]"
-                        />
-                        <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-mono">
-                            <span>{activeSlider.min}</span>
-                            <span>{activeSlider.max}</span>
-                        </div>
-                    </div>
-                 )}
-            </div>
-
-            {/* Bottom Controls */}
-            <div className="h-32 bg-black flex items-center justify-between px-10 pb-4 z-30">
-                {/* Gallery Preview */}
-                <button className="w-12 h-12 rounded-lg bg-gray-800 border-2 border-white/20 overflow-hidden">
-                     <div className="w-full h-full bg-gray-700"></div> 
-                </button>
-
-                {/* Shutter */}
-                <button 
-                   onClick={() => { setIsRecording(true); setTimeout(() => { setIsRecording(false); onLinkMedia("https://images.unsplash.com/photo-1492691527719-9d1e07e534b4", `24mm | ISO ${params.iso}`); }, 300); }}
-                   className={`w-20 h-20 rounded-full border-4 border-white flex items-center justify-center transition-transform active:scale-95 ${isRecording ? 'bg-red-600' : 'bg-transparent'}`}
-                >
-                    <div className={`w-16 h-16 rounded-full ${isRecording ? 'bg-red-500' : 'bg-red-500'}`}></div>
-                </button>
-
-                {/* Filters */}
-                <button className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-red-500 to-blue-500 border-2 border-white/20 flex items-center justify-center">
-                </button>
+                 {/* Top Left Close Button - iOS style Blur */}
+                 <button 
+                    onClick={stopCamera}
+                    className="absolute top-6 left-6 z-40 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-all active:scale-90"
+                 >
+                     <Icons.Close width={20} />
+                 </button>
+                 
+                 {/* Optional: Simple Indicator to show it's active */}
+                 <div className="absolute top-6 right-6 z-40 px-2 py-1 rounded bg-red-600/80 backdrop-blur-sm text-[10px] font-bold tracking-wider uppercase text-white shadow-lg">
+                     REC (SIM)
+                 </div>
             </div>
         </div>
     );

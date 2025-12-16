@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Icons } from './constants';
 
 // --- Types ---
@@ -37,11 +37,23 @@ interface PlanItem {
 }
 
 interface CallSheetData {
-    scene: string;
+    production: string;
+    date: string;
     location: string;
-    startTime: string;
+    weather: string;
+    nearestHospital: string;
+    callTime: string;
     shootTime: string;
-    crew: { role: string; name: string }[];
+    wrapTime: string;
+    crew: string;
+    cast: string;
+    notes: string;
+}
+
+declare global {
+    interface Window {
+        html2canvas: any;
+    }
 }
 
 // --- Icons (Local Wrappers) ---
@@ -59,19 +71,24 @@ const UI = {
     Folder: (props: any) => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#E5E7EB" strokeWidth="1" {...props}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" fill="#F3F4F6"/></svg>,
     Pen: (props: any) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>,
     Download: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-    Maximize: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2-2h3"/></svg>
+    Maximize: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2-2h3"/></svg>,
+    Power: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>,
+    Next: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
 };
 
 // --- COMPONENTS ---
 
-// 1. PROJECT MANAGER (PROJECTS TAB)
-// Handles Listing and the "Dashboard" for a selected project
-const ProjectManager = ({ activeProject, onSelectProject, onBack, onOpenTool }: { activeProject: Project|null, onSelectProject: (p:Project)=>void, onBack: ()=>void, onOpenTool: (m:ProjectMode)=>void }) => {
-    // Shared State (Mocked)
-    const [projects, setProjects] = useState<Project[]>([
-        { id: '1', title: '2023 品牌宣传片', updatedAt: '2小时前', aspectRatio: '16:9', template: 'general' },
-        { id: '2', title: '短剧《逆袭》', updatedAt: '昨天', aspectRatio: '9:16', template: 'short' }
-    ]);
+// 1. PROJECT MANAGER
+interface ProjectManagerProps {
+    activeProject: Project | null;
+    projects: Project[];
+    setProjects: (p: Project[]) => void;
+    onSelectProject: (p: Project) => void;
+    onBack: () => void;
+    onOpenTool: (m: ProjectMode) => void;
+}
+
+const ProjectManager = ({ activeProject, projects, setProjects, onSelectProject, onBack, onOpenTool }: ProjectManagerProps) => {
     const [showModal, setShowModal] = useState(false);
     
     // Create Form
@@ -104,7 +121,7 @@ const ProjectManager = ({ activeProject, onSelectProject, onBack, onOpenTool }: 
     // --- LIST VIEW ---
     if (!activeProject) {
         return (
-            <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto">
+            <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto font-sans">
                 <h1 className="text-2xl font-black text-gray-900 mb-8">我的项目</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     <button 
@@ -186,7 +203,7 @@ const ProjectManager = ({ activeProject, onSelectProject, onBack, onOpenTool }: 
 
     // --- DASHBOARD VIEW (Inside Project) ---
     return (
-        <div className="h-full bg-[#F7F8FA] flex flex-col">
+        <div className="h-full bg-[#F7F8FA] flex flex-col font-sans">
             <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 sticky top-0 z-20">
                 <div className="flex items-center gap-3">
                     <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"><Icons.Back width={20}/></button>
@@ -233,10 +250,12 @@ const ProjectManager = ({ activeProject, onSelectProject, onBack, onOpenTool }: 
     );
 };
 
-// 2. STORYBOARD TOOL (Inside Project)
+// 2. STORYBOARD TOOL
 const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
     const [mode, setMode] = useState<StoryboardMode>('list');
     const [aspect, setAspect] = useState<AspectRatio>(projectRatio || '16:9');
+    const [showImport, setShowImport] = useState(false);
+    const [importText, setImportText] = useState('');
 
     const addShot = () => {
         const newShot = {
@@ -251,8 +270,30 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
         setShots(shots.map((s:any) => s.id === id ? { ...s, [field]: val } : s));
     };
 
+    const handleImport = () => {
+        // Simple heuristic: Line break = row, Tab/Comma = column.
+        // Assumes order: Scene | Shot | Content | Type
+        const lines = importText.trim().split('\n');
+        const newShots: Shot[] = lines.map((line, idx) => {
+            const cols = line.split(/\t|,|，/); // Split by tab or comma
+            return {
+                id: Date.now().toString() + idx,
+                shotNo: cols[1] || (shots.length + 1 + idx).toString(),
+                scene: cols[0] || '',
+                duration: '3s',
+                content: cols[2] || cols[0] || '导入内容',
+                notes: '',
+                type: cols[3] || 'WS',
+                isChecked: false
+            };
+        });
+        setShots([...shots, ...newShots]);
+        setShowImport(false);
+        setImportText('');
+    };
+
     return (
-        <div className={`flex flex-col h-full ${mode === 'presentation' ? 'bg-black text-white z-50 fixed inset-0' : 'bg-[#F7F8FA]'}`}>
+        <div className={`flex flex-col h-full font-sans ${mode === 'presentation' ? 'bg-black text-white z-50 fixed inset-0' : 'bg-[#F7F8FA]'}`}>
             {/* Toolbar */}
             <div className={`px-4 py-3 flex items-center justify-between z-20 ${mode === 'presentation' ? 'absolute top-0 w-full hover:bg-black/50' : 'bg-white border-b border-gray-200 sticky top-0'}`}>
                  <div className="flex items-center gap-3">
@@ -261,12 +302,15 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
                  </div>
                  <div className="flex items-center gap-2">
                      {mode !== 'presentation' && (
-                        <div className="relative">
-                            <select value={aspect} onChange={(e)=>setAspect(e.target.value as AspectRatio)} className="appearance-none bg-gray-50 border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-bold outline-none">
-                                <option value="16:9">16:9</option><option value="2.35:1">2.35:1</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="9:16">9:16</option>
-                            </select>
-                            <UI.ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none"/>
-                        </div>
+                        <>
+                            <button onClick={()=>setShowImport(true)} className="text-xs font-bold bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg text-gray-600">导入脚本</button>
+                            <div className="relative">
+                                <select value={aspect} onChange={(e)=>setAspect(e.target.value as AspectRatio)} className="appearance-none bg-gray-50 border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-bold outline-none">
+                                    <option value="16:9">16:9</option><option value="2.35:1">2.35:1</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="9:16">9:16</option>
+                                </select>
+                                <UI.ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none"/>
+                            </div>
+                        </>
                      )}
                      <button onClick={() => setMode(mode === 'presentation' ? 'list' : 'presentation')} className="bg-[#FCD34D] text-black px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
                         {mode === 'presentation' ? '退出' : <><UI.Play width={14}/> 放映</>}
@@ -326,6 +370,26 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
                     </div>
                 )}
             </div>
+
+            {/* Import Modal */}
+            {showImport && (
+                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                     <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl">
+                         <h3 className="text-lg font-bold mb-4">导入脚本 (表格格式)</h3>
+                         <p className="text-xs text-gray-400 mb-2">请直接复制 Excel 或表格内容粘贴到下方。列顺序：场号 | 镜号 | 内容 | 景别</p>
+                         <textarea 
+                            className="w-full h-48 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-mono mb-4" 
+                            placeholder={"1\t1A\t主角入画\tWS\n1\t1B\t主角回头\tCU"}
+                            value={importText}
+                            onChange={e=>setImportText(e.target.value)}
+                         />
+                         <div className="flex gap-3">
+                             <button onClick={()=>setShowImport(false)} className="flex-1 py-2 text-gray-500 font-bold bg-gray-50 rounded-lg">取消</button>
+                             <button onClick={handleImport} className="flex-1 py-2 bg-[#FCD34D] text-black font-bold rounded-lg">识别并导入</button>
+                         </div>
+                     </div>
+                 </div>
+            )}
         </div>
     );
 };
@@ -346,7 +410,7 @@ const PlanTool = ({ onBack }: { onBack: ()=>void }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#F7F8FA]">
+        <div className="flex flex-col h-full bg-[#F7F8FA] font-sans">
              <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-200 sticky top-0 z-10">
                  <div className="flex items-center gap-3">
                      <button onClick={onBack}><Icons.Back width={20}/></button>
@@ -398,98 +462,544 @@ const PlanTool = ({ onBack }: { onBack: ()=>void }) => {
     );
 };
 
-// 4. CALL SHEET TOOL
+// 4. CALL SHEET TOOL (REDESIGNED with Preview & Image Gen)
 const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
+    const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+    const previewRef = useRef<HTMLDivElement>(null);
     const [data, setData] = useState<CallSheetData>({
-        scene: '23A, 24B', location: '创意产业园 A座', startTime: '06:30', shootTime: '08:00', crew: [{role: 'Director', name: 'WXZ'}, {role: 'DOP', name: 'Alex'}]
+        production: 'WXZ 品牌宣传片',
+        date: '2023-10-25',
+        location: 'WXZ 创意园 A栋',
+        weather: '晴转多云 24°C',
+        nearestHospital: '市第一医院',
+        callTime: '06:30 AM',
+        shootTime: '08:00 AM',
+        wrapTime: '18:00 PM',
+        crew: '导演: Tim, 摄影: Alex, 灯光: Lee',
+        cast: '男主: 张三, 女主: 李四',
+        notes: '请全员注意安全，携带身份证件。'
     });
 
-    return (
-        <div className="h-full bg-[#F7F8FA] flex flex-col">
-             <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-200 sticky top-0 z-10">
-                 <button onClick={onBack}><Icons.Back width={20}/></button>
-                 <h2 className="text-lg font-bold">通告单编辑</h2>
-             </div>
-             <div className="flex-1 p-4 md:p-8 overflow-y-auto pb-32 flex justify-center">
-                 <div className="w-full max-w-xl bg-white shadow-sm border border-gray-200 p-8">
-                     <div className="border-b-4 border-black pb-4 mb-6">
-                         <h1 className="text-3xl font-black uppercase">Call Sheet</h1>
-                         <div className="text-gray-400 text-xs font-bold mt-1">NO. 12</div>
-                     </div>
-                     <div className="space-y-6">
-                         <div className="grid grid-cols-2 gap-4">
-                             <div>
-                                 <label className="text-xs font-bold text-gray-400 uppercase">集合时间</label>
-                                 <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.startTime} onChange={e=>setData({...data, startTime: e.target.value})} />
-                             </div>
-                             <div>
-                                 <label className="text-xs font-bold text-gray-400 uppercase">开机时间</label>
-                                 <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.shootTime} onChange={e=>setData({...data, shootTime: e.target.value})} />
-                             </div>
-                         </div>
-                         <div>
-                             <label className="text-xs font-bold text-gray-400 uppercase">拍摄地点</label>
-                             <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.location} onChange={e=>setData({...data, location: e.target.value})} />
-                         </div>
-                         <div>
-                             <label className="text-xs font-bold text-gray-400 uppercase">场次</label>
-                             <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.scene} onChange={e=>setData({...data, scene: e.target.value})} />
-                         </div>
-                     </div>
-                 </div>
-             </div>
-        </div>
-    );
-};
-
-// 5. CLAPPER VIEW (Global Tool)
-const ClapperView = () => {
-    const [running, setRunning] = useState(false);
-    const [time, setTime] = useState(0);
-
-    useEffect(() => {
-        let interval: any;
-        if (running) {
-            interval = setInterval(() => setTime(t => t + 10), 10);
+    const handleDownload = () => {
+        if (previewRef.current && window.html2canvas) {
+            window.html2canvas(previewRef.current, { useCORS: true, scale: 2 }).then((canvas: HTMLCanvasElement) => {
+                const link = document.createElement('a');
+                link.download = `CallSheet_${data.date}.png`;
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        } else {
+            alert("正在初始化图片生成组件，请稍后再试...");
         }
-        return () => clearInterval(interval);
-    }, [running]);
-
-    const formatTime = (ms: number) => {
-        const date = new Date(ms);
-        return date.toISOString().substr(11, 11);
     };
 
     return (
-        <div className="h-full bg-[#202020] flex flex-col items-center justify-center p-4 pb-24">
-             <div 
-                className="w-full max-w-md aspect-[4/3] bg-white rounded-xl overflow-hidden shadow-2xl flex flex-col relative select-none cursor-pointer"
-                onClick={() => setRunning(!running)}
-            >
-                 <div className="h-14 bg-white border-b-4 border-black flex relative z-10">
-                     {Array.from({length: 8}).map((_,i) => (
-                         <div key={i} className="flex-1 border-r border-black transform -skew-x-12 bg-black/10 even:bg-transparent origin-bottom"></div>
-                     ))}
+        <div className="h-full bg-[#F7F8FA] flex flex-col font-sans">
+             {/* Header */}
+             <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-200 sticky top-0 z-10">
+                 <div className="flex items-center gap-3">
+                     <button onClick={onBack}><Icons.Back width={20}/></button>
+                     <h2 className="text-lg font-bold">拍摄通告</h2>
                  </div>
-                 <div className="flex-1 bg-white p-4 flex flex-col justify-between">
-                     <div className="grid grid-cols-3 gap-0 border-4 border-black h-24">
-                         <div className="border-r-4 border-black flex flex-col items-center justify-center"><span className="text-[10px] font-black text-gray-400">SCENE</span><span className="text-3xl font-black">24A</span></div>
-                         <div className="border-r-4 border-black flex flex-col items-center justify-center"><span className="text-[10px] font-black text-gray-400">TAKE</span><span className="text-3xl font-black">3</span></div>
-                         <div className="flex flex-col items-center justify-center"><span className="text-[10px] font-black text-gray-400">ROLL</span><span className="text-3xl font-black">A01</span></div>
-                     </div>
-                     <div className="flex justify-between items-end px-2">
-                         <div className="text-xs font-bold text-gray-400">WXZ Studio</div>
-                         <div className="font-mono text-4xl font-black text-red-600 tracking-widest">{formatTime(time)}</div>
-                     </div>
+                 <div className="flex gap-2">
+                     {mode === 'edit' ? (
+                         <button onClick={()=>setMode('preview')} className="bg-[#181818] text-white px-4 py-1.5 rounded-lg text-xs font-bold shadow-sm">预览</button>
+                     ) : (
+                         <>
+                            <button onClick={()=>setMode('edit')} className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-lg text-xs font-bold">编辑</button>
+                            <button onClick={handleDownload} className="bg-[#FCD34D] text-black px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><UI.Download width={14}/> 保存图片</button>
+                         </>
+                     )}
                  </div>
-                 {!running && <div className="absolute inset-0 bg-black/10 flex items-center justify-center pointer-events-none"><span className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold">Tap to Start</span></div>}
+             </div>
+
+             <div className="flex-1 overflow-y-auto pb-32 p-4">
+                 {mode === 'edit' ? (
+                     <div className="max-w-xl mx-auto space-y-6">
+                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                             <h3 className="text-xs font-bold text-[#FCD34D] uppercase mb-4 tracking-wider">基础信息</h3>
+                             <div className="space-y-4">
+                                 <div>
+                                     <label className="block text-xs font-bold text-gray-500 mb-1.5">通告标题</label>
+                                     <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.production} onChange={e=>setData({...data, production: e.target.value})} />
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                         <label className="block text-xs font-bold text-gray-500 mb-1.5">拍摄日期</label>
+                                         <input type="date" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.date} onChange={e=>setData({...data, date: e.target.value})} />
+                                     </div>
+                                     <div>
+                                         <label className="block text-xs font-bold text-gray-500 mb-1.5">集合时间</label>
+                                         <input type="time" className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.callTime.replace(' AM','').replace(' PM','')} onChange={e=>setData({...data, callTime: e.target.value})} />
+                                     </div>
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-bold text-gray-500 mb-1.5">拍摄地点</label>
+                                     <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.location} onChange={e=>setData({...data, location: e.target.value})} />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-bold text-gray-500 mb-1.5">天气</label>
+                                     <input className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold outline-none" value={data.weather} onChange={e=>setData({...data, weather: e.target.value})} />
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                             <h3 className="text-xs font-bold text-[#FCD34D] uppercase mb-4 tracking-wider">人员与备注</h3>
+                             <div className="space-y-4">
+                                <div>
+                                     <label className="block text-xs font-bold text-gray-500 mb-1.5">演职人员</label>
+                                     <textarea className="w-full h-24 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium outline-none" value={data.crew} onChange={e=>setData({...data, crew: e.target.value})} />
+                                </div>
+                                <div>
+                                     <label className="block text-xs font-bold text-gray-500 mb-1.5">备注</label>
+                                     <textarea className="w-full h-24 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium outline-none" value={data.notes} onChange={e=>setData({...data, notes: e.target.value})} />
+                                </div>
+                             </div>
+                         </div>
+                     </div>
+                 ) : (
+                     <div className="flex justify-center">
+                         <div ref={previewRef} className="bg-white w-full max-w-lg shadow-2xl p-8 text-[#333]">
+                             <div className="border-b-4 border-black pb-6 mb-6 flex justify-between items-end">
+                                 <div>
+                                     <h1 className="text-3xl font-black uppercase tracking-tight">CALL SHEET</h1>
+                                     <div className="text-sm font-bold mt-2 text-gray-500">{data.production}</div>
+                                 </div>
+                                 <div className="text-right">
+                                     <div className="text-xs font-bold bg-black text-white px-2 py-1 mb-1">DATE</div>
+                                     <div className="text-xl font-mono font-bold">{data.date}</div>
+                                 </div>
+                             </div>
+                             
+                             <div className="grid grid-cols-3 gap-4 mb-8 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                 <div className="text-center border-r border-gray-200">
+                                     <div className="text-[10px] font-bold text-gray-400 mb-1">CALL TIME</div>
+                                     <div className="text-lg font-black">{data.callTime}</div>
+                                 </div>
+                                 <div className="text-center border-r border-gray-200">
+                                     <div className="text-[10px] font-bold text-gray-400 mb-1">SHOOT</div>
+                                     <div className="text-lg font-black">{data.shootTime}</div>
+                                 </div>
+                                 <div className="text-center">
+                                     <div className="text-[10px] font-bold text-gray-400 mb-1">WRAP (EST)</div>
+                                     <div className="text-lg font-black">{data.wrapTime}</div>
+                                 </div>
+                             </div>
+
+                             <div className="space-y-6">
+                                 <div className="flex gap-4 border-b border-gray-100 pb-4">
+                                     <div className="w-8 flex justify-center pt-1"><UI.Globe width={20} className="text-gray-400"/></div>
+                                     <div>
+                                         <div className="text-xs font-bold text-gray-400 mb-1">LOCATION</div>
+                                         <div className="font-bold">{data.location}</div>
+                                         <div className="text-xs text-gray-500 mt-1">Nearest Hospital: {data.nearestHospital}</div>
+                                     </div>
+                                 </div>
+                                 <div className="flex gap-4 border-b border-gray-100 pb-4">
+                                     <div className="w-8 flex justify-center pt-1"><UI.Sun width={20} className="text-gray-400"/></div>
+                                     <div>
+                                         <div className="text-xs font-bold text-gray-400 mb-1">WEATHER</div>
+                                         <div className="font-bold">{data.weather}</div>
+                                     </div>
+                                 </div>
+                                 <div className="flex gap-4 border-b border-gray-100 pb-4">
+                                     <div className="w-8 flex justify-center pt-1"><UI.Users width={20} className="text-gray-400"/></div>
+                                     <div>
+                                         <div className="text-xs font-bold text-gray-400 mb-1">CREW & CAST</div>
+                                         <div className="text-sm whitespace-pre-wrap">{data.crew}</div>
+                                         <div className="text-sm whitespace-pre-wrap mt-2 text-gray-600">{data.cast}</div>
+                                     </div>
+                                 </div>
+                                 <div className="flex gap-4">
+                                     <div className="w-8 flex justify-center pt-1"><UI.Info width={20} className="text-gray-400"/></div>
+                                     <div>
+                                         <div className="text-xs font-bold text-gray-400 mb-1">NOTES</div>
+                                         <div className="text-sm italic text-gray-600 bg-yellow-50 p-2 rounded">{data.notes}</div>
+                                     </div>
+                                 </div>
+                             </div>
+                             
+                             <div className="mt-12 text-center text-[10px] text-gray-300 font-bold tracking-widest uppercase">
+                                 Generated by WXZ Studio
+                             </div>
+                         </div>
+                     </div>
+                 )}
              </div>
         </div>
     );
 };
 
-// 6. MORE APPS VIEW
+// 5. CLAPPER VIEW (UPDATED ANIMATION & BUTTONS & DEFAULTS)
+const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project[] }) => {
+    // Helper for today's date
+    const getToday = () => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        return `${y}.${m}.${day}`;
+    };
+
+    // Clapper State
+    const [slate, setSlate] = useState({
+        roll: '1',
+        scene: '1',
+        shot: '1',
+        take: '1',
+        camera: 'A',
+        director: 'WXZ',
+        prodTitle: projects.length > 0 ? projects[0].title : (projects.length === 0 ? '无项目' : ''),
+        date: getToday()
+    });
+    
+    const [isClapped, setIsClapped] = useState(false);
+    const [showProjectSelect, setShowProjectSelect] = useState(false);
+
+    const handleClap = () => {
+        setIsClapped(true);
+        setTimeout(() => setIsClapped(false), 200); // Reset animation
+    };
+
+    const handleNextShot = () => {
+        const nextShot = (parseInt(slate.shot) + 1).toString();
+        setSlate({...slate, shot: nextShot, take: '1'});
+    };
+
+    return (
+        <div className="h-full bg-[#F5F5F5] flex flex-col items-center justify-between font-sans relative overflow-hidden">
+             
+             {/* Clapperboard Container */}
+             <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center p-4">
+                <div className="w-full bg-white rounded-2xl shadow-xl border border-gray-200 relative select-none overflow-visible">
+                     
+                     {/* 1. Header Stripe (Animated) */}
+                     <div 
+                        className={`h-24 bg-[#1A1A1A] relative flex items-center overflow-hidden rounded-t-2xl origin-bottom-left transition-transform duration-100 ease-in ${isClapped ? 'rotate-[-10deg]' : 'rotate-0'}`}
+                        style={{ transformOrigin: '0% 100%' }}
+                     >
+                         {/* Decorative dots left */}
+                         <div className="absolute left-4 flex gap-2">
+                             <div className="w-3 h-3 rounded-full bg-white/20"></div>
+                             <div className="w-3 h-3 rounded-full bg-white"></div>
+                         </div>
+                         
+                         {/* Chevrons */}
+                         <div className="w-full flex justify-end">
+                             <div className="h-24 w-20 bg-[#FCD34D] transform -skew-x-[30deg] translate-x-4"></div>
+                             <div className="h-24 w-20 bg-white transform -skew-x-[30deg] translate-x-4"></div>
+                         </div>
+                     </div>
+
+                     {/* 2. Main Content */}
+                     <div className="p-6">
+                         {/* Production Title */}
+                         <div className="mb-6 border-b border-gray-100 pb-4 relative z-20">
+                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">片名 PRODUCTION</div>
+                             <button 
+                                onClick={() => setShowProjectSelect(!showProjectSelect)}
+                                className="w-full text-left flex items-center justify-between group"
+                             >
+                                <span className={`text-3xl font-black truncate ${slate.prodTitle && slate.prodTitle !== '无项目' ? 'text-[#1A1A1A]' : 'text-gray-300'}`}>
+                                    {slate.prodTitle || '点击选择项目'}
+                                </span>
+                                <UI.ChevronDown width={24} className="text-gray-300 group-hover:text-[#FCD34D] transition-colors"/>
+                             </button>
+                             
+                             {/* Dropdown */}
+                             {showProjectSelect && (
+                                 <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up">
+                                     <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                         {projects.length > 0 ? (
+                                             projects.map(p => (
+                                                 <button
+                                                    key={p.id}
+                                                    onClick={() => {
+                                                        setSlate({...slate, prodTitle: p.title});
+                                                        setShowProjectSelect(false);
+                                                    }}
+                                                    className="w-full text-left px-4 py-3 hover:bg-yellow-50 font-bold text-sm text-gray-800 border-b border-gray-50 last:border-0"
+                                                 >
+                                                     {p.title}
+                                                 </button>
+                                             ))
+                                         ) : (
+                                             <div className="px-4 py-3 text-sm text-gray-400 text-center">
+                                                 暂无项目，请先去创建
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
+                             )}
+                             
+                             {/* Backdrop for click-away */}
+                             {showProjectSelect && (
+                                 <div className="fixed inset-0 z-[-1]" onClick={() => setShowProjectSelect(false)}></div>
+                             )}
+                         </div>
+
+                         {/* Grid - Row 1: Roll & Scene */}
+                         <div className="grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 mb-px">
+                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
+                                 <input 
+                                    className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                    value={slate.roll}
+                                    onChange={(e)=>setSlate({...slate, roll: e.target.value})}
+                                 />
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">ROLL 卷号</div>
+                             </div>
+                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
+                                 <input 
+                                    className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                    value={slate.scene}
+                                    onChange={(e)=>setSlate({...slate, scene: e.target.value})}
+                                 />
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">SCENE 场号</div>
+                             </div>
+                         </div>
+
+                         {/* Grid - Row 2: Shot, Take, Camera */}
+                         <div className="grid grid-cols-3 gap-px bg-gray-100 border border-gray-100">
+                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
+                                 <input 
+                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                     value={slate.shot}
+                                     onChange={(e)=>setSlate({...slate, shot: e.target.value})}
+                                 />
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">SHOT 镜号</div>
+                             </div>
+                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
+                                 <input 
+                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                     value={slate.take}
+                                     onChange={(e)=>setSlate({...slate, take: e.target.value})}
+                                 />
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">TAKE 次数</div>
+                             </div>
+                             <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
+                                 <input 
+                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                     value={slate.camera}
+                                     onChange={(e)=>setSlate({...slate, camera: e.target.value})}
+                                 />
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">CAM 机位</div>
+                             </div>
+                         </div>
+
+                         {/* Footer Info */}
+                         <div className="mt-6 grid grid-cols-2 gap-4">
+                             <div>
+                                 <input 
+                                    className="text-xl font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
+                                    value={slate.director}
+                                    onChange={(e)=>setSlate({...slate, director: e.target.value})}
+                                 />
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">DIRECTOR 导演</div>
+                             </div>
+                             <div className="text-right">
+                                 <div className="text-xl font-bold text-[#1A1A1A] mb-1 font-mono">{slate.date}</div>
+                                 <div className="text-[10px] font-bold text-gray-400 uppercase">DATE 日期</div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+
+             {/* Bottom Action Bar */}
+             <div className="w-full bg-white pb-[90px] pt-6 px-6 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.05)] rounded-t-3xl z-10">
+                 <button onClick={handleClap} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+                     <div className="w-16 h-16 rounded-full bg-[#FFC107] flex items-center justify-center text-white shadow-lg shadow-orange-100">
+                         <UI.Clapper width={28}/>
+                     </div>
+                     <span className="text-[10px] font-bold text-gray-500">打板!</span>
+                 </button>
+                 
+                 <button onClick={handleNextShot} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+                     <div className="w-16 h-16 rounded-full bg-[#FFECB3] flex items-center justify-center text-[#FFC107] border-2 border-[#FFE082]">
+                         <UI.Next width={28}/>
+                     </div>
+                     <span className="text-[10px] font-bold text-gray-500">下一镜</span>
+                 </button>
+
+                 <button className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+                     <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-gray-600 border border-gray-200 shadow-sm">
+                         <UI.List width={24}/>
+                     </div>
+                     <span className="text-[10px] font-bold text-gray-500">镜头详情</span>
+                 </button>
+
+                 <button onClick={onBack} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+                     <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center text-gray-600 border border-gray-200 shadow-sm">
+                         <UI.Power width={24}/>
+                     </div>
+                     <span className="text-[10px] font-bold text-gray-500">返回</span>
+                 </button>
+             </div>
+        </div>
+    );
+};
+
+// 6. MORE APPS VIEW (With Close Buttons & Links)
 const MoreAppsView = () => {
+    // Tool States
+    const [activeApp, setActiveApp] = useState<'none' | 'calculator' | 'level' | 'compass' | 'food'>('none');
+    
+    // Food State
+    const [foodResult, setFoodResult] = useState('');
+    
+    // Calculator State
+    const [calcDisplay, setCalcDisplay] = useState('0');
+    
+    // Level State
+    const [levelData, setLevelData] = useState({ x: 0, y: 0 });
+    
+    // Compass State
+    const [compassHeading, setCompassHeading] = useState(0);
+
+    // Helpers
+    const openApp = (id: string) => {
+        if(id === 'food') {
+            const foods = ['火锅', '烧烤', '麻辣烫', '汉堡', '披萨', '日料', '韩料', '轻食', '牛肉面', '炒饭'];
+            let i = 0;
+            const interval = setInterval(() => {
+                setFoodResult(foods[Math.floor(Math.random() * foods.length)]);
+                i++;
+                if(i > 20) clearInterval(interval);
+            }, 50);
+            setActiveApp('food');
+        } else if (id === 'calc') {
+            setCalcDisplay('0');
+            setActiveApp('calculator');
+        } else if (id === 'level') {
+            setActiveApp('level');
+        } else if (id === 'compass') {
+            setActiveApp('compass');
+        }
+    };
+
+    // Effect for Level (Mouse simulation for desktop, DeviceOrientation for mobile)
+    useEffect(() => {
+        if (activeApp === 'level') {
+            const handleMouseMove = (e: MouseEvent) => {
+                // Simulate tilt based on mouse position relative to center
+                const x = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2) * 20;
+                const y = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2) * 20;
+                setLevelData({ x, y });
+            };
+            
+            const handleOrientation = (e: DeviceOrientationEvent) => {
+                if(e.beta && e.gamma) {
+                    setLevelData({ x: e.gamma, y: e.beta });
+                }
+            };
+
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('deviceorientation', handleOrientation);
+            return () => {
+                window.removeEventListener('mousemove', handleMouseMove);
+                window.removeEventListener('deviceorientation', handleOrientation);
+            };
+        }
+        if (activeApp === 'compass') {
+             // Simulate rotation
+             const interval = setInterval(() => {
+                 setCompassHeading(prev => (prev + 1) % 360);
+             }, 100);
+             return () => clearInterval(interval);
+        }
+    }, [activeApp]);
+
+    // Components for Tools
+    const Calculator = () => {
+        const handleBtn = (v: string) => {
+            if(v === 'C') setCalcDisplay('0');
+            else if(v === '=') {
+                try {
+                    // Safe eval alternative
+                    setCalcDisplay(eval(calcDisplay).toString());
+                } catch { setCalcDisplay('Error'); }
+            } else {
+                setCalcDisplay(calcDisplay === '0' ? v : calcDisplay + v);
+            }
+        };
+        const btns = ['C', '(', ')', '/', '7', '8', '9', '*', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '='];
+        return (
+            <div className="w-full max-w-xs bg-white rounded-2xl shadow-2xl p-6 relative">
+                 <button onClick={()=>setActiveApp('none')} className="absolute top-2 right-2 p-2 text-gray-400 hover:text-black"><Icons.Close/></button>
+                <div className="bg-gray-100 h-16 rounded-xl mb-4 flex items-center justify-end px-4 text-3xl font-mono font-bold text-gray-800 overflow-hidden">
+                    {calcDisplay}
+                </div>
+                <div className="grid grid-cols-4 gap-3">
+                    {btns.map(b => (
+                        <button key={b} onClick={()=>handleBtn(b)} className={`h-12 rounded-lg font-bold text-lg hover:bg-gray-200 transition-colors ${b==='='?'col-span-2 bg-[#FCD34D] hover:bg-[#fbbf24] text-black':'bg-gray-50 text-gray-700'}`}>
+                            {b}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const Level = () => (
+        <div className="relative w-full h-full flex items-center justify-center">
+             <button onClick={()=>setActiveApp('none')} className="fixed top-8 right-8 z-[80] w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg text-black hover:scale-110 transition-transform"><Icons.Close width={24}/></button>
+            <div className="w-full max-w-xs aspect-square bg-[#222] rounded-full shadow-2xl relative border-4 border-gray-700 overflow-hidden flex items-center justify-center">
+                {/* Center target */}
+                <div className="absolute inset-0 border-2 border-white/20 rounded-full scale-50"></div>
+                <div className="absolute w-1 h-1 bg-white rounded-full z-10"></div>
+                {/* Bubble */}
+                <div 
+                    className="w-16 h-16 bg-[#FCD34D] rounded-full shadow-inner opacity-90 transition-transform duration-100 ease-out border-2 border-white/50 backdrop-blur-sm"
+                    style={{ transform: `translate(${levelData.x * 2}px, ${levelData.y * 2}px)` }}
+                >
+                    <div className="w-4 h-4 bg-white/40 rounded-full absolute top-3 left-3 blur-[2px]"></div>
+                </div>
+                <div className="absolute bottom-10 text-white font-mono text-xs opacity-50">
+                    X: {levelData.x.toFixed(1)}° Y: {levelData.y.toFixed(1)}°
+                </div>
+            </div>
+        </div>
+    );
+
+    const Compass = () => (
+        <div className="relative w-full h-full flex items-center justify-center">
+             <button onClick={()=>setActiveApp('none')} className="fixed top-8 right-8 z-[80] w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg text-black hover:scale-110 transition-transform"><Icons.Close width={24}/></button>
+            <div className="w-full max-w-xs aspect-square bg-white rounded-full shadow-2xl relative border-8 border-gray-100 flex items-center justify-center">
+                 <div className="absolute inset-0 rounded-full border-[20px] border-gray-50"></div>
+                 {/* Degree ticks */}
+                 {[0, 90, 180, 270].map(d => (
+                     <div key={d} className="absolute inset-0 flex justify-center pt-2 font-bold text-gray-400" style={{transform: `rotate(${d}deg)`}}>
+                         {d === 0 ? 'N' : d === 90 ? 'E' : d === 180 ? 'S' : 'W'}
+                     </div>
+                 ))}
+                 {/* Needle */}
+                 <div 
+                    className="w-4 h-40 bg-red-500 rounded-full relative shadow-md transition-transform duration-700 ease-out z-10"
+                    style={{transform: `rotate(${compassHeading}deg)`}}
+                 >
+                     <div className="absolute top-0 left-0 right-0 h-1/2 bg-red-600 rounded-t-full"></div>
+                     <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gray-800 rounded-b-full"></div>
+                 </div>
+                 <div className="absolute bottom-10 font-mono font-bold text-2xl text-gray-800">{compassHeading}°</div>
+            </div>
+        </div>
+    );
+
+    const Food = () => (
+        <div className="w-full max-w-xs bg-white rounded-2xl shadow-2xl p-8 text-center relative">
+             <button onClick={()=>setActiveApp('none')} className="absolute top-2 right-2 p-2 text-gray-400 hover:text-black"><Icons.Close/></button>
+            <h3 className="text-gray-400 font-bold text-sm uppercase mb-4">今天吃什么</h3>
+            <div className="text-5xl font-black text-[#FCD34D] mb-8 min-h-[60px] animate-pulse">
+                {foodResult}
+            </div>
+            <div className="flex gap-4">
+                <button onClick={()=>openApp('food')} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-600">重选</button>
+                <button onClick={()=>setActiveApp('none')} className="flex-1 py-3 bg-black text-white rounded-xl font-bold">决定了</button>
+            </div>
+        </div>
+    );
+
     const tools = [
         { id: 'food', label: '今天吃什么', icon: UI.Food, color: 'bg-orange-100 text-orange-600' },
         { id: 'calc', label: '计算器', icon: UI.Calculator, color: 'bg-gray-100 text-gray-600' },
@@ -497,29 +1007,17 @@ const MoreAppsView = () => {
         { id: 'compass', label: '指南针', icon: UI.Compass, color: 'bg-red-100 text-red-600' },
     ];
 
-    const [modal, setModal] = useState<{title:string, content:React.ReactNode}|null>(null);
-
-    const openTool = (id: string) => {
-        if(id === 'food') {
-            const foods = ['牛肉面', '麻辣烫', '沙拉', '汉堡', '盖饭', '饺子'];
-            setModal({
-                title: '今天吃什么',
-                content: <div className="text-center py-8"><h2 className="text-4xl font-bold animate-pulse">{foods[Math.floor(Math.random()*foods.length)]}</h2></div>
-            });
-        } else {
-            setModal({ title: '提示', content: <div className="p-4 text-center">功能开发中...</div> });
-        }
-    };
+    const [showThanks, setShowThanks] = useState(false);
 
     return (
-        <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto">
+        <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto font-sans relative">
             <h1 className="text-2xl font-black text-gray-900 mb-8">更多应用</h1>
             
             <div className="mb-8">
                 <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">实用工具</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {tools.map(tool => (
-                        <button key={tool.id} onClick={()=>openTool(tool.id)} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors">
+                        <button key={tool.id} onClick={()=>openApp(tool.id)} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color}`}>
                                 <tool.icon width={20} />
                             </div>
@@ -532,23 +1030,37 @@ const MoreAppsView = () => {
             <div>
                 <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">关于</h3>
                 <div className="space-y-3">
-                    <button className="w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 hover:bg-gray-50">
+                    <button onClick={()=>setShowThanks(true)} className="w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 hover:bg-gray-50">
                         <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-500 flex items-center justify-center"><UI.Heart width={16}/></div>
                         <span className="text-sm font-bold">感谢作者</span>
                     </button>
-                    <button className="w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 hover:bg-gray-50">
+                    <button onClick={()=>window.open('https://wxzstudio.edgeone.dev/', '_blank')} className="w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 hover:bg-gray-50">
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center"><UI.Link width={16}/></div>
                         <span className="text-sm font-bold">访问官网</span>
                     </button>
                 </div>
             </div>
 
-            {modal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={()=>setModal(null)}>
-                    <div className="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
-                        <h3 className="text-lg font-bold mb-4">{modal.title}</h3>
-                        {modal.content}
-                        <button onClick={()=>setModal(null)} className="w-full mt-6 py-2 bg-gray-100 rounded-lg font-bold">关闭</button>
+            {/* Tool Modal Overlay */}
+            {activeApp !== 'none' && (
+                <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+                    {activeApp === 'calculator' && <Calculator />}
+                    {activeApp === 'level' && <Level />}
+                    {activeApp === 'compass' && <Compass />}
+                    {activeApp === 'food' && <Food />}
+                </div>
+            )}
+
+            {/* Thanks Modal */}
+            {showThanks && (
+                <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={()=>setShowThanks(false)}>
+                    <div className="bg-white rounded-2xl p-8 max-w-xs text-center" onClick={e=>e.stopPropagation()}>
+                        <div className="w-16 h-16 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <UI.Heart width={32} fill="currentColor"/>
+                        </div>
+                        <h3 className="text-xl font-black mb-2">WXZ STUDIO</h3>
+                        <p className="text-gray-500 text-sm mb-6">Designed with love.</p>
+                        <button onClick={()=>setShowThanks(false)} className="bg-black text-white px-6 py-2 rounded-lg font-bold text-sm">Close</button>
                     </div>
                 </div>
             )}
@@ -556,33 +1068,131 @@ const MoreAppsView = () => {
     );
 };
 
-// 7. VIEWFINDER VIEW (Kept largely the same, optimized for context)
+// 7. VIEWFINDER VIEW (FIXED PADDING)
 const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: string) => void }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isRecording, setIsRecording] = useState(false);
+    const [activeControl, setActiveControl] = useState<string | null>(null);
     
+    const [params, setParams] = useState({
+        iso: 800,
+        shutter: '1/50',
+        wb: 5600,
+        focus: 50,
+        ev: 0.0
+    });
+
     useEffect(() => {
         let stream: MediaStream | null = null;
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })
             .then(s => { stream = s; if (videoRef.current) videoRef.current.srcObject = s; })
             .catch(console.error);
         return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
     }, []);
 
+    const controls = [
+        { id: 'flip', label: '前置', icon: Icons.Refresh },
+        { id: 'focus', label: '对焦', icon: Icons.Focus, adjustable: true },
+        { id: 'wb', label: '白平衡', icon: Icons.Sun, adjustable: true },
+        { id: 'iso', label: '感光', icon: Icons.Aperture, adjustable: true },
+        { id: 'shutter', label: '快门速度', icon: Icons.Shutter, adjustable: true },
+        { id: 'ev', label: '曝光补偿', icon: Icons.Exposure, adjustable: true },
+        { id: 'settings', label: '设置', icon: Icons.Settings },
+    ];
+
+    const handleControlClick = (id: string) => {
+        if(id === 'flip') return;
+        setActiveControl(activeControl === id ? null : id);
+    };
+
+    const getSliderConfig = (id: string) => {
+        switch(id) {
+            case 'iso': return { min: 100, max: 6400, step: 100, val: params.iso, label: `ISO ${params.iso}` };
+            case 'wb': return { min: 2000, max: 8000, step: 100, val: params.wb, label: `${params.wb}K` };
+            case 'focus': return { min: 0, max: 100, step: 1, val: params.focus, label: `Focus ${params.focus}` };
+            case 'ev': return { min: -3, max: 3, step: 0.1, val: params.ev, label: `${params.ev > 0 ? '+' : ''}${params.ev.toFixed(1)} EV` };
+            case 'shutter': return { min: 1, max: 1000, step: 10, val: parseInt(params.shutter.split('/')[1] || '50'), label: params.shutter };
+            default: return null;
+        }
+    };
+
+    const activeSlider = activeControl ? getSliderConfig(activeControl) : null;
+
+    const updateParam = (val: number) => {
+        if(!activeControl) return;
+        if(activeControl === 'shutter') setParams({...params, shutter: `1/${val}`});
+        else setParams({...params, [activeControl]: val});
+    }
+
     return (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white pb-[80px]">
-            <div className="absolute top-4 left-4 z-20 bg-black/50 px-2 py-1 rounded text-xs font-mono text-green-400">STBY • 4K</div>
-            <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-[#1a1a1a]">
-                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
-                 <div className="absolute inset-0 border-[40px] border-black/80 pointer-events-none" style={{borderTopWidth: '60px', borderBottomWidth: '60px'}}></div>
-                 <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none"><div className="border border-white/50 col-start-2 row-start-2"></div></div>
+        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white font-sans overflow-hidden pb-[90px]">
+            {/* Top Toolbar */}
+            <div className="flex justify-between px-4 pt-6 pb-4 bg-black/60 backdrop-blur-md z-30 overflow-x-auto scrollbar-hide">
+                {controls.map(c => (
+                    <button 
+                        key={c.id} 
+                        onClick={() => handleControlClick(c.id)}
+                        className={`flex flex-col items-center gap-1 min-w-[56px] flex-shrink-0 ${activeControl === c.id ? 'text-[#FCD34D]' : 'text-white'}`}
+                    >
+                        <c.icon width={24} strokeWidth={activeControl === c.id ? 2.5 : 2}/>
+                        <span className="text-[10px] font-bold tracking-tight whitespace-nowrap">{c.label}</span>
+                    </button>
+                ))}
             </div>
-            <div className="h-32 bg-black/90 flex items-center justify-center relative z-20">
+
+            {/* Viewfinder Area */}
+            <div className="flex-1 relative bg-[#1a1a1a] flex items-center justify-center overflow-hidden">
+                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
+                 
+                 {/* Grid Overlay */}
+                 <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-20 pointer-events-none">
+                     <div className="border-r border-white/50"></div><div className="border-r border-white/50"></div>
+                     <div className="border-r border-white/50 col-start-1 row-start-2 border-t border-b"></div>
+                     <div className="border-r border-white/50 col-start-2 row-start-2 border-t border-b"></div>
+                     <div className="col-start-3 row-start-2 border-t border-b border-white/50"></div>
+                 </div>
+
+                 {/* Active Slider Overlay */}
+                 {activeSlider && (
+                    <div className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur rounded-2xl p-4 animate-slide-up z-20">
+                        <div className="flex justify-between text-xs font-bold mb-2 text-[#FCD34D]">
+                            <span className="uppercase">{activeControl}</span>
+                            <span>{activeSlider.label}</span>
+                        </div>
+                        <input 
+                            type="range" 
+                            min={activeSlider.min} 
+                            max={activeSlider.max} 
+                            step={activeSlider.step}
+                            value={activeSlider.val}
+                            onChange={(e) => updateParam(parseFloat(e.target.value))}
+                            className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-[#FCD34D]"
+                        />
+                        <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-mono">
+                            <span>{activeSlider.min}</span>
+                            <span>{activeSlider.max}</span>
+                        </div>
+                    </div>
+                 )}
+            </div>
+
+            {/* Bottom Controls */}
+            <div className="h-32 bg-black flex items-center justify-between px-10 pb-4 z-30">
+                {/* Gallery Preview */}
+                <button className="w-12 h-12 rounded-lg bg-gray-800 border-2 border-white/20 overflow-hidden">
+                     <div className="w-full h-full bg-gray-700"></div> 
+                </button>
+
+                {/* Shutter */}
                 <button 
-                   onClick={() => { setIsRecording(true); setTimeout(() => { setIsRecording(false); onLinkMedia("https://images.unsplash.com/photo-1492691527719-9d1e07e534b4", "24mm | ISO 800"); }, 500); }}
-                   className={`w-16 h-16 rounded-full border-4 border-white flex items-center justify-center ${isRecording ? 'bg-red-500' : 'bg-transparent'}`}
+                   onClick={() => { setIsRecording(true); setTimeout(() => { setIsRecording(false); onLinkMedia("https://images.unsplash.com/photo-1492691527719-9d1e07e534b4", `24mm | ISO ${params.iso}`); }, 300); }}
+                   className={`w-20 h-20 rounded-full border-4 border-white flex items-center justify-center transition-transform active:scale-95 ${isRecording ? 'bg-red-600' : 'bg-transparent'}`}
                 >
-                    <div className="w-12 h-12 bg-white rounded-full"></div>
+                    <div className={`w-16 h-16 rounded-full ${isRecording ? 'bg-red-500' : 'bg-red-500'}`}></div>
+                </button>
+
+                {/* Filters */}
+                <button className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-red-500 to-blue-500 border-2 border-white/20 flex items-center justify-center">
                 </button>
             </div>
         </div>
@@ -599,7 +1209,7 @@ const MainNavBar = ({ active, onChange }: { active: EditorTab; onChange: (t: Edi
     ];
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 h-[80px] bg-white border-t border-gray-100 flex items-center justify-around px-2 pb-safe z-50">
+        <div className="fixed bottom-0 left-0 right-0 h-[80px] bg-white border-t border-gray-100 flex items-center justify-around px-2 pb-safe z-50 font-sans">
             {tabs.map((t) => {
                 const isActive = active === t.id;
                 return (
@@ -621,6 +1231,9 @@ const App: React.FC = () => {
     const [activeProject, setActiveProject] = useState<Project | null>(null);
     const [projectMode, setProjectMode] = useState<ProjectMode>('dashboard');
     
+    // Lifted Projects State for Persistence
+    const [projects, setProjects] = useState<Project[]>([]);
+
     // Shared Data
     const [shots, setShots] = useState<Shot[]>([{ id: '1', shotNo: '1', scene: '1', duration: '5s', content: '男主走进房间', notes: '', type: 'WS', isChecked: false, technical: '24mm' }]);
 
@@ -642,15 +1255,26 @@ const App: React.FC = () => {
         setProjectMode(mode);
     };
 
+    const handleBackFromClapper = () => {
+        if (activeProject) {
+            setProjectMode('dashboard');
+            setEditorTab('projects');
+        } else {
+             setEditorTab('apps'); // Default fallback or projects
+        }
+    };
+
     // Render Content based on current state
     const renderContent = () => {
         if (editorTab === 'viewfinder') return <ViewfinderView onLinkMedia={(url, meta) => alert(`Media Captured: ${meta}`)} />;
-        if (editorTab === 'clapper') return <ClapperView />;
+        // Pass a back handler to clapper if it was opened from projects context, but here it's global tab. 
+        // We add a specific back handler for the Clapper UI button.
+        if (editorTab === 'clapper') return <ClapperView onBack={() => setEditorTab('projects')} projects={projects} />;
         if (editorTab === 'apps') return <MoreAppsView />;
         
         // Projects Tab Logic
         if (!activeProject) {
-            return <ProjectManager activeProject={null} onSelectProject={handleSelectProject} onBack={()=>{}} onOpenTool={()=>{}} />;
+            return <ProjectManager activeProject={null} projects={projects} setProjects={setProjects} onSelectProject={handleSelectProject} onBack={()=>{}} onOpenTool={()=>{}} />;
         }
 
         // Inside a Project
@@ -662,7 +1286,7 @@ const App: React.FC = () => {
             case 'callsheet':
                 return <CallSheetTool onBack={handleBackToDashboard} />;
             default:
-                return <ProjectManager activeProject={activeProject} onSelectProject={()=>{}} onBack={handleBackToProjects} onOpenTool={handleOpenTool} />;
+                return <ProjectManager activeProject={activeProject} projects={projects} setProjects={setProjects} onSelectProject={()=>{}} onBack={handleBackToProjects} onOpenTool={handleOpenTool} />;
         }
     };
 

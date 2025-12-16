@@ -53,6 +53,7 @@ interface CallSheetData {
 declare global {
     interface Window {
         html2canvas: any;
+        DeviceOrientationEvent: any;
     }
 }
 
@@ -672,7 +673,7 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
              
              {/* Clapperboard Container */}
              <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center p-4">
-                <div className="w-full bg-white rounded-2xl shadow-xl border border-gray-200 relative select-none overflow-visible">
+                <div className="w-full bg-white rounded-2xl shadow-xl border border-gray-200 relative select-none">
                      
                      {/* 1. Header Stripe (Animated) */}
                      <div 
@@ -693,9 +694,9 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                      </div>
 
                      {/* 2. Main Content */}
-                     <div className="p-6">
-                         {/* Production Title */}
-                         <div className="mb-6 border-b border-gray-100 pb-4 relative z-20">
+                     <div className="p-6 relative">
+                         {/* Production Title - Elevated Z-Index */}
+                         <div className="mb-6 border-b border-gray-100 pb-4 relative z-50">
                              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">片名 PRODUCTION</div>
                              <button 
                                 onClick={() => setShowProjectSelect(!showProjectSelect)}
@@ -707,7 +708,7 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                                 <UI.ChevronDown width={24} className="text-gray-300 group-hover:text-[#FCD34D] transition-colors"/>
                              </button>
                              
-                             {/* Dropdown */}
+                             {/* Dropdown - Adjusted positioning */}
                              {showProjectSelect && (
                                  <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up">
                                      <div className="max-h-48 overflow-y-auto custom-scrollbar">
@@ -739,8 +740,8 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                              )}
                          </div>
 
-                         {/* Grid - Row 1: Roll & Scene */}
-                         <div className="grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 mb-px">
+                         {/* Grid - Row 1: Roll & Scene - Lower Z-Index */}
+                         <div className="grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 mb-px relative z-10">
                              <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
                                  <input 
                                     className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
@@ -759,8 +760,8 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                              </div>
                          </div>
 
-                         {/* Grid - Row 2: Shot, Take, Camera */}
-                         <div className="grid grid-cols-3 gap-px bg-gray-100 border border-gray-100">
+                         {/* Grid - Row 2: Shot, Take, Camera - Lower Z-Index */}
+                         <div className="grid grid-cols-3 gap-px bg-gray-100 border border-gray-100 relative z-10">
                              <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
                                  <input 
                                      className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
@@ -788,7 +789,7 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                          </div>
 
                          {/* Footer Info */}
-                         <div className="mt-6 grid grid-cols-2 gap-4">
+                         <div className="mt-6 grid grid-cols-2 gap-4 relative z-10">
                              <div>
                                  <input 
                                     className="text-xl font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1"
@@ -856,6 +857,7 @@ const MoreAppsView = () => {
     
     // Compass State
     const [compassHeading, setCompassHeading] = useState(0);
+    const [hasPermission, setHasPermission] = useState(false);
 
     // Helpers
     const openApp = (id: string) => {
@@ -875,6 +877,24 @@ const MoreAppsView = () => {
             setActiveApp('level');
         } else if (id === 'compass') {
             setActiveApp('compass');
+            setHasPermission(false);
+        }
+    };
+
+    const requestCompassPermission = () => {
+        if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+            (DeviceOrientationEvent as any).requestPermission()
+                .then((response: string) => {
+                    if (response === 'granted') {
+                        setHasPermission(true);
+                    } else {
+                        alert('Permission denied');
+                    }
+                })
+                .catch(console.error);
+        } else {
+            // Non-iOS 13+ devices
+            setHasPermission(true);
         }
     };
 
@@ -902,13 +922,26 @@ const MoreAppsView = () => {
             };
         }
         if (activeApp === 'compass') {
-             // Simulate rotation
-             const interval = setInterval(() => {
-                 setCompassHeading(prev => (prev + 1) % 360);
-             }, 100);
-             return () => clearInterval(interval);
+             const handleOrientation = (e: any) => {
+                 // Webkit (iOS) specific
+                 if (e.webkitCompassHeading) {
+                     setCompassHeading(e.webkitCompassHeading);
+                 }
+                 // Standard (Android)
+                 else if (e.alpha) {
+                     setCompassHeading(360 - e.alpha);
+                 }
+             };
+
+             if (hasPermission) {
+                 window.addEventListener('deviceorientation', handleOrientation, true);
+             }
+
+             return () => {
+                 window.removeEventListener('deviceorientation', handleOrientation, true);
+             };
         }
-    }, [activeApp]);
+    }, [activeApp, hasPermission]);
 
     // Components for Tools
     const Calculator = () => {
@@ -965,24 +998,33 @@ const MoreAppsView = () => {
     const Compass = () => (
         <div className="relative w-full h-full flex items-center justify-center">
              <button onClick={()=>setActiveApp('none')} className="fixed top-8 right-8 z-[80] w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg text-black hover:scale-110 transition-transform"><Icons.Close width={24}/></button>
-            <div className="w-full max-w-xs aspect-square bg-white rounded-full shadow-2xl relative border-8 border-gray-100 flex items-center justify-center">
-                 <div className="absolute inset-0 rounded-full border-[20px] border-gray-50"></div>
-                 {/* Degree ticks */}
-                 {[0, 90, 180, 270].map(d => (
-                     <div key={d} className="absolute inset-0 flex justify-center pt-2 font-bold text-gray-400" style={{transform: `rotate(${d}deg)`}}>
-                         {d === 0 ? 'N' : d === 90 ? 'E' : d === 180 ? 'S' : 'W'}
-                     </div>
-                 ))}
-                 {/* Needle */}
-                 <div 
-                    className="w-4 h-40 bg-red-500 rounded-full relative shadow-md transition-transform duration-700 ease-out z-10"
-                    style={{transform: `rotate(${compassHeading}deg)`}}
-                 >
-                     <div className="absolute top-0 left-0 right-0 h-1/2 bg-red-600 rounded-t-full"></div>
-                     <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gray-800 rounded-b-full"></div>
-                 </div>
-                 <div className="absolute bottom-10 font-mono font-bold text-2xl text-gray-800">{compassHeading}°</div>
-            </div>
+            
+             {!hasPermission ? (
+                <div className="bg-white p-6 rounded-2xl shadow-xl text-center z-50 max-w-xs">
+                    <h3 className="font-bold text-lg mb-2">需要权限</h3>
+                    <p className="text-sm text-gray-500 mb-4">指南针需要访问您的设备方向传感器。</p>
+                    <button onClick={requestCompassPermission} className="bg-[#FCD34D] text-black font-bold px-6 py-2 rounded-lg text-sm w-full">允许访问</button>
+                </div>
+             ) : (
+                <div className="w-full max-w-xs aspect-square bg-white rounded-full shadow-2xl relative border-8 border-gray-100 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-[20px] border-gray-50"></div>
+                    {/* Degree ticks */}
+                    {[0, 90, 180, 270].map(d => (
+                        <div key={d} className="absolute inset-0 flex justify-center pt-2 font-bold text-gray-400" style={{transform: `rotate(${d}deg)`}}>
+                            {d === 0 ? 'N' : d === 90 ? 'E' : d === 180 ? 'S' : 'W'}
+                        </div>
+                    ))}
+                    {/* Needle */}
+                    <div 
+                        className="w-4 h-40 bg-red-500 rounded-full relative shadow-md transition-transform duration-300 ease-out z-10"
+                        style={{transform: `rotate(${compassHeading}deg)`}}
+                    >
+                        <div className="absolute top-0 left-0 right-0 h-1/2 bg-red-600 rounded-t-full"></div>
+                        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gray-800 rounded-b-full"></div>
+                    </div>
+                    <div className="absolute bottom-10 font-mono font-bold text-2xl text-gray-800">{Math.round(compassHeading)}°</div>
+                </div>
+             )}
         </div>
     );
 
@@ -1166,7 +1208,7 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
                             step={activeSlider.step}
                             value={activeSlider.val}
                             onChange={(e) => updateParam(parseFloat(e.target.value))}
-                            className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-[#FCD34D]"
+                            className="w-full h-6 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-[#FCD34D]"
                         />
                         <div className="flex justify-between text-[10px] text-gray-500 mt-2 font-mono">
                             <span>{activeSlider.min}</span>

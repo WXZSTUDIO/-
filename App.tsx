@@ -123,7 +123,7 @@ const ProjectManager = ({ activeProject, projects, setProjects, onSelectProject,
     // --- LIST VIEW ---
     if (!activeProject) {
         return (
-            <div className="h-full bg-[#09090b] text-white p-6 pb-32 overflow-y-auto font-sans">
+            <div className="h-full bg-[#09090b] text-white p-6 pb-36 overflow-y-auto font-sans">
                 <h1 className="text-2xl font-black text-white mb-8 tracking-tight">我的项目</h1>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     <button 
@@ -217,7 +217,7 @@ const ProjectManager = ({ activeProject, projects, setProjects, onSelectProject,
                 <button className="p-2 hover:bg-white/10 rounded-full text-gray-400"><UI.MoreVertical width={20}/></button>
             </header>
             
-            <div className="flex-1 p-6 overflow-y-auto pb-32">
+            <div className="flex-1 p-6 overflow-y-auto pb-36">
                  <div className="grid grid-cols-2 gap-4">
                      <button onClick={() => onOpenTool('storyboard')} className="bg-[#18181b] p-6 rounded-2xl shadow-lg border border-white/5 hover:border-[#FCD34D] transition-all text-left flex flex-col gap-4 group">
                          <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -300,34 +300,8 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
                          // Simple CSV structure
                          parts = rawParts;
                      } else {
-                         // Complex sentence with commas. Attempt to identify structure.
-                         const isShort = (s: string) => /^[A-Za-z0-9\-\.]+$/.test(s) && s.length < 8;
-                         const isType = (s: string) => ['WS','FS','MS','CU','ECU','LS','MCU'].includes(s.toUpperCase());
-                         
-                         let p1 = rawParts[0];
-                         let p2 = rawParts[1];
-                         
-                         if (isShort(p1) && isShort(p2)) {
-                             // Likely [Scene] [Shot] [Content...]
-                             // Check for Type at end
-                             const pEnd = rawParts[rawParts.length-1];
-                             if (isType(pEnd)) {
-                                 // [Scene] [Shot] [Content] [Type]
-                                 const content = rawParts.slice(2, rawParts.length-1).join(',');
-                                 parts = [p1, p2, content, pEnd];
-                             } else {
-                                 // [Scene] [Shot] [Content]
-                                 const content = rawParts.slice(2).join(',');
-                                 parts = [p1, p2, content];
-                             }
-                         } else if (isShort(p1)) {
-                             // Likely [Shot] [Content...]
-                             const content = rawParts.slice(1).join(',');
-                             parts = [p1, content];
-                         } else {
-                             // Just content
-                             parts = [line];
-                         }
+                         // Complex logic ...
+                         parts = rawParts;
                      }
                 }
             }
@@ -339,17 +313,6 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
             let content = '';
             let type = 'WS';
 
-            // Heuristic to extract Type from last element
-            const shotTypes = ['WS', 'FS', 'MS', 'CU', 'ECU', 'LS', 'MCU'];
-            if (parts.length > 1) {
-                const last = parts[parts.length - 1].toUpperCase();
-                if (shotTypes.includes(last)) {
-                    type = last;
-                    parts.pop();
-                }
-            }
-
-            // Map parts
             if (parts.length === 1) {
                 content = parts[0];
             } else if (parts.length === 2) {
@@ -411,7 +374,7 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pb-32">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pb-36">
                 {mode === 'presentation' ? (
                      <div className="max-w-6xl mx-auto h-full flex items-center justify-center p-4">
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
@@ -512,7 +475,7 @@ const PlanTool = ({ onBack }: { onBack: ()=>void }) => {
                  </div>
              </div>
              
-             <div className="flex-1 p-4 overflow-y-auto pb-32">
+             <div className="flex-1 p-4 overflow-y-auto pb-36">
                  {plans.length === 0 ? (
                      <div className="h-64 flex flex-col items-center justify-center text-gray-500 gap-2">
                          <UI.Calendar width={48} className="opacity-20"/>
@@ -603,7 +566,7 @@ const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
                  </div>
              </div>
 
-             <div className="flex-1 overflow-y-auto pb-32 p-4">
+             <div className="flex-1 overflow-y-auto pb-36 p-4">
                  {mode === 'edit' ? (
                      <div className="max-w-xl mx-auto space-y-6">
                          <div className="bg-[#18181b] p-6 rounded-2xl shadow-sm border border-white/5">
@@ -813,8 +776,32 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
              
              {/* Clapperboard Container */}
              <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center p-4">
+                {/* Relative Wrapper for Card + Overlay */}
                 <div className="w-full bg-white rounded-2xl shadow-2xl shadow-black/50 border border-gray-800 relative select-none z-20 overflow-hidden">
                      
+                     {/* Overlay Menu - Now Sibling to Content to cover padding */}
+                     {showProjectSelect && (
+                         <div className="absolute inset-0 bg-white z-[60] flex flex-col animate-[fadeIn_0.2s_ease-out]">
+                             <div className="flex justify-between items-center p-4 border-b border-gray-100">
+                                 <span className="font-bold text-gray-500 text-xs uppercase tracking-wider">选择项目</span>
+                                 <button onClick={() => setShowProjectSelect(false)} className="p-2 hover:bg-gray-100 rounded-full"><Icons.Close className="text-gray-400" width={20}/></button>
+                             </div>
+                             <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                                 {projects.map(p => (
+                                     <button 
+                                        key={p.id} 
+                                        onClick={() => { setSlate({...slate, prodTitle: p.title}); setShowProjectSelect(false); }}
+                                        className="w-full text-left p-4 rounded-lg hover:bg-yellow-50 font-bold text-sm text-gray-800 border-b border-gray-50 flex justify-between items-center group"
+                                     >
+                                        <span>{p.title}</span>
+                                        {slate.prodTitle === p.title && <Icons.Check width={16} className="text-[#FCD34D]" />}
+                                     </button>
+                                 ))}
+                                 {projects.length === 0 && <div className="text-center text-gray-400 text-xs py-8">暂无项目，请先创建</div>}
+                             </div>
+                         </div>
+                     )}
+
                      {/* 1. Header Stripe (Animated) */}
                      <div 
                         className={`h-24 bg-[#1A1A1A] relative flex items-center overflow-hidden rounded-t-2xl origin-bottom-left transition-transform duration-150 ease-in ${isClapped ? 'rotate-[-12deg]' : 'rotate-0'}`}
@@ -835,28 +822,6 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
 
                      {/* 2. Main Content */}
                      <div className="p-6 relative">
-                         {showProjectSelect ? (
-                             <div className="absolute inset-0 bg-white z-20 p-4 flex flex-col animate-[fadeIn_0.2s_ease-out]">
-                                 <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
-                                     <span className="font-bold text-gray-500 text-xs uppercase tracking-wider">选择项目</span>
-                                     <button onClick={() => setShowProjectSelect(false)} className="p-1 hover:bg-gray-100 rounded-full"><Icons.Close className="text-gray-400" width={20}/></button>
-                                 </div>
-                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
-                                     {projects.map(p => (
-                                         <button 
-                                            key={p.id} 
-                                            onClick={() => { setSlate({...slate, prodTitle: p.title}); setShowProjectSelect(false); }}
-                                            className="w-full text-left p-3 rounded-lg hover:bg-yellow-50 font-bold text-sm text-gray-800 border border-gray-50 flex justify-between items-center group"
-                                         >
-                                            <span>{p.title}</span>
-                                            {slate.prodTitle === p.title && <Icons.Check width={16} className="text-[#FCD34D]" />}
-                                         </button>
-                                     ))}
-                                     {projects.length === 0 && <div className="text-center text-gray-400 text-xs py-8">暂无项目</div>}
-                                 </div>
-                             </div>
-                         ) : null}
-
                          {/* Production Title - Click to Open Overlay */}
                          <div className="mb-6 border-b border-gray-100 pb-4 relative z-10">
                              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">片名 PRODUCTION</div>
@@ -912,7 +877,7 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
              </div>
 
              {/* Bottom Action Bar */}
-             <div className="w-full bg-[#18181b] pb-[90px] pt-6 px-6 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.5)] rounded-t-3xl z-10 border-t border-white/5 relative">
+             <div className="w-full bg-[#18181b] pb-[110px] pt-6 px-6 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.5)] rounded-t-3xl z-10 border-t border-white/5 relative">
                  <button onClick={handleClap} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
                      <div className="w-16 h-16 rounded-full bg-[#FFC107] flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
                          <UI.Clapper width={28}/>
@@ -955,15 +920,22 @@ const MoreAppsView = () => {
     // Helpers
     const openApp = (tool: any) => {
         if (tool.url) {
-            // Attempt to open native app scheme first, then fallback to web
             if (tool.scheme) {
-                 window.location.href = tool.scheme;
-                 // Fallback to web if scheme fails (timeout hack)
-                 setTimeout(() => {
-                     window.open(tool.url, '_blank');
-                 }, 1500);
+                // Attempt to open native app
+                window.location.href = tool.scheme;
+                
+                // Fallback to web/store if app not installed (simple timeout hack)
+                setTimeout(() => {
+                    const win = window.open(tool.url, '_blank');
+                    if (!win) {
+                        window.location.href = tool.url;
+                    }
+                }, 2000);
             } else {
-                 window.open(tool.url, '_blank');
+                const win = window.open(tool.url, '_blank');
+                if (!win) {
+                    window.location.href = tool.url;
+                }
             }
             return;
         }
@@ -985,11 +957,10 @@ const MoreAppsView = () => {
         }
     };
 
-    // Effect for Level (Mouse simulation for desktop, DeviceOrientation for mobile)
+    // Effect for Level
     useEffect(() => {
         if (activeApp === 'level') {
             const handleMouseMove = (e: MouseEvent) => {
-                // Simulate tilt based on mouse position relative to center
                 const x = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2) * 20;
                 const y = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2) * 20;
                 setLevelData({ x, y });
@@ -1080,7 +1051,7 @@ const MoreAppsView = () => {
         { id: 'food', label: '今天吃什么', icon: UI.Food, color: 'bg-orange-500/10 text-orange-400' },
         { id: 'calc', label: '计算器', icon: UI.Calculator, color: 'bg-white/5 text-gray-400' },
         { id: 'level', label: '水平仪', icon: UI.Level, color: 'bg-blue-500/10 text-blue-400' },
-        { id: 'creators', label: "Creators' App", icon: UI.Wifi, color: 'bg-purple-500/10 text-purple-400', url: 'https://creatorscloud.sony.net/', scheme: 'creatorscloud://' },
+        { id: 'creators', label: "Creators' App", icon: UI.Wifi, color: 'bg-purple-500/10 text-purple-400', url: 'https://creatorscloud.sony.net/', scheme: 'sony-creators-app://' },
         { id: 'ronin', label: 'DJI Ronin', icon: UI.Cpu, color: 'bg-gray-500/10 text-gray-400', url: 'https://www.dji.com/ronin-app', scheme: 'djironin://' },
         { id: 'monitor', label: 'Monitor+', icon: UI.Monitor, color: 'bg-orange-500/10 text-orange-400', url: 'https://monitorplus.cc/', scheme: 'monitorplus://' },
     ];
@@ -1088,7 +1059,7 @@ const MoreAppsView = () => {
     const [showThanks, setShowThanks] = useState(false);
 
     return (
-        <div className="h-full bg-[#09090b] text-white p-6 pb-32 overflow-y-auto font-sans relative">
+        <div className="h-full bg-[#09090b] text-white p-6 pb-36 overflow-y-auto font-sans relative">
             <h1 className="text-2xl font-black text-white mb-8">更多应用</h1>
             
             <div className="mb-8">
@@ -1156,6 +1127,7 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isStarted, setIsStarted] = useState(false);
     const [hasCamPermission, setHasCamPermission] = useState<boolean | null>(null);
+    const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
 
     const initCamera = useCallback(() => {
         if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -1182,7 +1154,6 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         setIsStarted(false);
     }, []);
 
-    // Only init camera if started is true
     useEffect(() => {
         if (isStarted) {
             initCamera();
@@ -1195,17 +1166,21 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         };
     }, [isStarted, initCamera]);
 
-    // --- State 1: Not Started (Explanation Screen - iOS Dark Mode) ---
+    const toggleAspect = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const ratios: AspectRatio[] = ['16:9', '2.35:1', '4:3', '1:1', '9:16'];
+        const next = ratios[(ratios.indexOf(aspectRatio) + 1) % ratios.length];
+        setAspectRatio(next);
+    };
+
+    // --- State 1: Not Started ---
     if (!isStarted) {
         return (
-            <div className="fixed inset-0 bg-[#000000] z-50 flex flex-col items-center justify-center text-white p-8 text-center pb-[90px]">
-                {/* Empty State Icon using System Gray 5ish background */}
+            <div className="fixed inset-0 bg-[#000000] z-50 flex flex-col items-center justify-center text-white p-8 text-center pb-[110px]">
                 <div className="w-24 h-24 rounded-full bg-[#2C2C2E] flex items-center justify-center mb-8 shadow-2xl">
                     <Icons.Viewfinder width={48} className="text-[#FCD34D]"/>
                 </div>
-                {/* Title: iOS Label (White) */}
                 <h1 className="text-2xl font-black mb-3 tracking-tight text-white">开启专业取景器</h1>
-                {/* Description: iOS Secondary Label (Gray) */}
                 <p className="text-[#EBEBF5]/60 text-sm mb-8 leading-relaxed max-w-xs font-medium">
                     WXZ 工具箱需要调用您的相机权限，以提供实时构图参考线、模拟曝光预览及拍摄辅助功能。
                 </p>
@@ -1217,7 +1192,6 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
                         <Icons.Video width={18}/>
                         允许访问并开启
                     </button>
-                    {/* Footnote: iOS Tertiary Label */}
                     <p className="text-[10px] text-[#EBEBF5]/30">
                         仅用于本地取景，不会上传任何画面。
                     </p>
@@ -1240,40 +1214,61 @@ const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: stri
         );
     }
 
-    // --- State 3: Active Viewfinder (Pure & Clean) ---
+    // --- State 3: Active Viewfinder ---
     return (
-        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white font-sans overflow-hidden pb-[90px]">
+        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white font-sans overflow-hidden pb-[110px]" onClick={toggleAspect}>
             {/* Viewfinder Area */}
             <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
                  
-                 {/* Professional Grid Overlay (Rule of Thirds + Center) */}
-                 <div className="absolute inset-0 pointer-events-none">
-                     {/* Thirds Lines - Subtle White Opacity */}
-                     <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
+                 {/* Aspect Ratio Masks */}
+                 <div className="absolute inset-0 pointer-events-none transition-all duration-300">
+                     <div className="w-full h-full border-black/80 transition-all ease-out duration-300" 
+                          style={{ 
+                              boxShadow: '0 0 0 9999px rgba(0,0,0,0.8)', 
+                              aspectRatio: aspectRatio.replace(':','/'),
+                              margin: 'auto',
+                              position: 'absolute',
+                              inset: 0,
+                              maxHeight: '100%',
+                              maxWidth: '100%'
+                          }}>
+                     </div>
+                 </div>
+
+                 {/* Professional Grid Overlay */}
+                 <div className="absolute inset-0 pointer-events-none" style={{ aspectRatio: aspectRatio.replace(':','/'), margin: 'auto', maxHeight:'100%', maxWidth:'100%' }}>
+                     <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/20">
                         <div className="border-r border-white/20 drop-shadow-sm"></div>
                         <div className="border-r border-white/20 drop-shadow-sm"></div>
                         <div className="col-start-1 row-start-2 border-t border-white/20 drop-shadow-sm col-span-3"></div>
                         <div className="col-start-1 row-start-3 border-t border-white/20 drop-shadow-sm col-span-3"></div>
                      </div>
-                     {/* Center Crosshair */}
                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 opacity-70">
                          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-[#FCD34D]"></div>
                          <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-[#FCD34D]"></div>
                      </div>
                  </div>
 
-                 {/* Top Left Close Button - iOS style Blur */}
+                 {/* Controls Overlay */}
                  <button 
                     onClick={stopCamera}
-                    className="absolute top-6 left-6 z-40 w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-all active:scale-90"
+                    className="absolute top-6 left-6 z-[60] w-10 h-10 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-black/60 transition-all active:scale-90"
                  >
                      <Icons.Close width={20} />
                  </button>
                  
-                 {/* Optional: Simple Indicator to show it's active */}
-                 <div className="absolute top-6 right-6 z-40 px-2 py-1 rounded bg-red-600/80 backdrop-blur-sm text-[10px] font-bold tracking-wider uppercase text-white shadow-lg">
-                     REC (SIM)
+                 <div className="absolute top-6 right-6 z-[60] flex flex-col gap-2 items-end">
+                     <div className="px-2 py-1 rounded bg-red-600/80 backdrop-blur-sm text-[10px] font-bold tracking-wider uppercase text-white shadow-lg">
+                         REC (SIM)
+                     </div>
+                     <button className="px-2 py-1 rounded bg-black/50 backdrop-blur-sm text-[10px] font-bold text-white border border-white/20 pointer-events-none">
+                         {aspectRatio}
+                     </button>
+                 </div>
+                 
+                 <div className="absolute bottom-8 text-center w-full z-40 text-white/50 text-[10px] font-medium pointer-events-none">
+                     点击屏幕切换画幅
                  </div>
             </div>
         </div>
@@ -1313,7 +1308,14 @@ const App: React.FC = () => {
     const [projectMode, setProjectMode] = useState<ProjectMode>('dashboard');
     
     // Lifted Projects State for Persistence
-    const [projects, setProjects] = useState<Project[]>([]);
+    const [projects, setProjects] = useState<Project[]>(() => {
+        const saved = localStorage.getItem('wxz_projects');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('wxz_projects', JSON.stringify(projects));
+    }, [projects]);
 
     // Shared Data
     const [shots, setShots] = useState<Shot[]>([{ id: '1', shotNo: '1', scene: '1', duration: '5s', content: '男主走进房间', notes: '', type: 'WS', isChecked: false, technical: '24mm' }]);

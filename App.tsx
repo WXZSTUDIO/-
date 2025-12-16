@@ -74,7 +74,8 @@ const UI = {
     Download: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
     Maximize: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2-2h3"/></svg>,
     Power: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>,
-    Next: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+    Next: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>,
+    ChevronRight: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polyline points="9 18 15 12 9 6"></polyline></svg>
 };
 
 // --- COMPONENTS ---
@@ -276,47 +277,91 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
 
         const lines = importText.trim().split('\n').filter(l => l.trim());
         const newShots: Shot[] = lines.map((line, idx) => {
-            let cols: string[] = [];
-            // Excel/Sheets uses tabs. CSV uses commas.
-            // Check for tabs first as it is the most reliable structure for pasted tables.
-            if (line.indexOf('\t') !== -1) {
-                cols = line.split('\t');
+            // Intelligent Parsing Logic
+            let parts: string[] = [];
+            
+            // 1. Try Tab (Most reliable for Excel copy-paste)
+            if (line.includes('\t')) {
+                parts = line.split('\t');
             } else {
-                // Fallback to comma/Chinese comma
-                cols = line.split(/,|，/);
+                // 2. Try Pipe (Common text format)
+                if (line.includes('|')) {
+                     parts = line.split('|');
+                } else {
+                     // 3. Fallback: Comma/Space
+                     // Normalize Chinese comma
+                     const normalized = line.replace(/，/g, ',');
+                     const rawParts = normalized.split(',').map(s => s.trim()).filter(s => s);
+                     
+                     if (rawParts.length === 0) {
+                         // Fallback to space split if comma split failed
+                         parts = line.split(/\s+/).map(s => s.trim());
+                     } else if (rawParts.length <= 4) {
+                         // Simple CSV structure
+                         parts = rawParts;
+                     } else {
+                         // Complex sentence with commas. Attempt to identify structure.
+                         const isShort = (s: string) => /^[A-Za-z0-9\-\.]+$/.test(s) && s.length < 8;
+                         const isType = (s: string) => ['WS','FS','MS','CU','ECU','LS','MCU'].includes(s.toUpperCase());
+                         
+                         let p1 = rawParts[0];
+                         let p2 = rawParts[1];
+                         
+                         if (isShort(p1) && isShort(p2)) {
+                             // Likely [Scene] [Shot] [Content...]
+                             // Check for Type at end
+                             const pEnd = rawParts[rawParts.length-1];
+                             if (isType(pEnd)) {
+                                 // [Scene] [Shot] [Content] [Type]
+                                 const content = rawParts.slice(2, rawParts.length-1).join(',');
+                                 parts = [p1, p2, content, pEnd];
+                             } else {
+                                 // [Scene] [Shot] [Content]
+                                 const content = rawParts.slice(2).join(',');
+                                 parts = [p1, p2, content];
+                             }
+                         } else if (isShort(p1)) {
+                             // Likely [Shot] [Content...]
+                             const content = rawParts.slice(1).join(',');
+                             parts = [p1, content];
+                         } else {
+                             // Just content
+                             parts = [line];
+                         }
+                     }
+                }
             }
             
-            // Clean items
-            cols = cols.map(c => c.trim());
-
-            // Default Mapping: Scene | Shot | Content | Type
-            // If the user pastes single column, assume it is Content.
-            // If 2 columns: Shot | Content
-            // If 3 columns: Scene | Shot | Content
-            // If 4+: Scene | Shot | Content | Type
+            parts = parts.map(p => p.trim());
 
             let scene = '';
             let shotNo = '';
             let content = '';
             let type = 'WS';
 
-            if (cols.length === 1) {
-                content = cols[0];
-            } else if (cols.length === 2) {
-                shotNo = cols[0];
-                content = cols[1];
-            } else if (cols.length === 3) {
-                scene = cols[0];
-                shotNo = cols[1];
-                content = cols[2];
-            } else {
-                scene = cols[0];
-                shotNo = cols[1];
-                content = cols[2];
-                type = cols[3] || 'WS';
+            // Heuristic to extract Type from last element
+            const shotTypes = ['WS', 'FS', 'MS', 'CU', 'ECU', 'LS', 'MCU'];
+            if (parts.length > 1) {
+                const last = parts[parts.length - 1].toUpperCase();
+                if (shotTypes.includes(last)) {
+                    type = last;
+                    parts.pop();
+                }
             }
 
-            // Fallback generation
+            // Map parts
+            if (parts.length === 1) {
+                content = parts[0];
+            } else if (parts.length === 2) {
+                shotNo = parts[0];
+                content = parts[1];
+            } else if (parts.length >= 3) {
+                scene = parts[0];
+                shotNo = parts[1];
+                content = parts.slice(2).join(' '); // Join remainder
+            }
+
+            // Defaults
             if (!shotNo) shotNo = (shots.length + 1 + idx).toString();
             if (!content) content = '导入内容';
 
@@ -421,10 +466,10 @@ const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
                  <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
                      <div className="bg-[#18181b] w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-white/10">
                          <h3 className="text-lg font-bold mb-4 text-white">导入脚本 (表格格式)</h3>
-                         <p className="text-xs text-gray-400 mb-2">请直接复制 Excel 或表格内容粘贴到下方。列顺序：场号 | 镜号 | 内容 | 景别</p>
+                         <p className="text-xs text-gray-400 mb-2">支持从 Excel/WPS 直接复制粘贴。智能识别格式：[场号] [镜号] [内容] [景别]</p>
                          <textarea 
                             className="w-full h-48 bg-[#27272a] border border-white/10 rounded-lg p-3 text-xs font-mono mb-4 text-white placeholder-gray-500" 
-                            placeholder={"1\t1A\t主角入画\tWS\n1\t1B\t主角回头\tCU"}
+                            placeholder={"1\t1A\t主角入画\tWS\n或\n1, 1A, 主角回头, CU"}
                             value={importText}
                             onChange={e=>setImportText(e.target.value)}
                          />
@@ -707,9 +752,10 @@ const NumberInput = ({ value, onChange, label }: { value: string, onChange: (v: 
     }
     return (
         <div className="bg-white p-4 h-28 flex flex-col justify-center relative group active:bg-gray-50 transition-colors cursor-pointer select-none">
-             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex flex-col opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                 <button onClick={handleInc} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-black active:bg-gray-200"><UI.ChevronDown className="rotate-180 w-5 h-5"/></button>
-                 <button onClick={handleDec} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-black active:bg-gray-200"><UI.ChevronDown className="w-5 h-5"/></button>
+             {/* Always visible on hover or touch compatible */}
+             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
+                 <button onClick={handleInc} className="p-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 hover:text-black shadow-sm"><UI.ChevronDown className="rotate-180 w-4 h-4"/></button>
+                 <button onClick={handleDec} className="p-1 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 hover:text-black shadow-sm"><UI.ChevronDown className="w-4 h-4"/></button>
              </div>
              <input 
                 className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1 text-center pointer-events-none"
@@ -744,14 +790,17 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
     });
     
     const [isClapped, setIsClapped] = useState(false);
-    const [showFullscreen, setShowFullscreen] = useState(false);
     const [showProjectSelect, setShowProjectSelect] = useState(false);
 
     const handleClap = () => {
         setIsClapped(true);
-        // Enter fullscreen mode after clap or directly
-        setShowFullscreen(true);
-        setTimeout(() => setIsClapped(false), 200); 
+        setTimeout(() => {
+            setIsClapped(false);
+            setSlate(prev => ({
+                ...prev,
+                take: (parseInt(prev.take) + 1).toString()
+            }));
+        }, 300); 
     };
 
     const handleNextShot = () => {
@@ -759,102 +808,16 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
         setSlate({...slate, shot: nextShot, take: '1'});
     };
 
-    // Fullscreen Slate Component
-    const FullscreenSlate = () => {
-        const [animate, setAnimate] = useState(false);
-        const [time, setTime] = useState(new Date().toLocaleTimeString());
-
-        useEffect(() => {
-             // Initial clap animation
-             setTimeout(() => setAnimate(true), 100);
-             // Clock
-             const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000);
-             return () => clearInterval(t);
-        }, []);
-
-        const triggerClap = () => {
-            setAnimate(false);
-            setTimeout(() => setAnimate(true), 100);
-        };
-
-        return (
-            <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center cursor-pointer" onClick={triggerClap}>
-                 {/* Close Button */}
-                 <button 
-                    onClick={(e) => { e.stopPropagation(); setShowFullscreen(false); }}
-                    className="absolute top-8 right-8 z-50 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white backdrop-blur-md"
-                 >
-                     <Icons.Close width={32} />
-                 </button>
-                 
-                 <div className="w-full max-w-4xl aspect-[4/3] bg-white rounded-3xl shadow-2xl relative select-none transform scale-90 md:scale-100 origin-center border-[8px] border-[#1a1a1a]">
-                     {/* Clapper Stick */}
-                     <div className="absolute -top-[120px] left-0 right-0 h-[120px]">
-                         {/* Static Part */}
-                         <div className="absolute bottom-0 right-0 w-[10%] h-full bg-white border-b-8 border-[#1a1a1a] flex">
-                              <div className="w-full h-full bg-[repeating-linear-gradient(135deg,#000,#000_20px,#fff_20px,#fff_40px)]"></div>
-                         </div>
-                         {/* Moving Part */}
-                         <div 
-                            className={`absolute bottom-0 left-0 w-full h-full bg-white border-b-8 border-[#1a1a1a] origin-bottom-right transition-transform duration-100 ease-in flex overflow-hidden rounded-t-lg z-20 ${animate ? 'rotate-0' : '-rotate-[25deg]'}`}
-                         >
-                              <div className="w-full h-full bg-[repeating-linear-gradient(135deg,#000,#000_30px,#fff_30px,#fff_60px)]"></div>
-                         </div>
-                     </div>
-                     
-                     {/* Board Content */}
-                     <div className="h-full p-8 flex flex-col">
-                          <div className="border-b-[4px] border-black pb-4 mb-4">
-                               <h1 className="text-6xl font-black text-center uppercase tracking-tight truncate">{slate.prodTitle}</h1>
-                          </div>
-                          
-                          <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-4">
-                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center">
-                                   <span className="text-2xl font-bold text-gray-500 uppercase">SCENE</span>
-                                   <span className="text-8xl font-black font-mono">{slate.scene}</span>
-                               </div>
-                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center">
-                                   <span className="text-2xl font-bold text-gray-500 uppercase">TAKE</span>
-                                   <span className="text-8xl font-black font-mono">{slate.take}</span>
-                               </div>
-                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center relative overflow-hidden">
-                                   <span className="text-2xl font-bold text-gray-500 uppercase">ROLL</span>
-                                   <span className="text-7xl font-black font-mono">{slate.roll}</span>
-                               </div>
-                               <div className="border-[4px] border-black p-4 flex flex-col justify-center items-center">
-                                   <span className="text-2xl font-bold text-gray-500 uppercase">SHOT</span>
-                                   <span className="text-7xl font-black font-mono">{slate.shot}</span>
-                               </div>
-                          </div>
-
-                          <div className="mt-8 flex justify-between items-end">
-                               <div>
-                                   <div className="text-2xl font-bold">DIRECTOR: {slate.director}</div>
-                                   <div className="text-2xl font-bold">CAMERA: {slate.camera}</div>
-                               </div>
-                               <div className="text-right">
-                                   <div className="text-xl font-bold text-gray-500">{slate.date}</div>
-                                   <div className="text-4xl font-mono font-bold text-red-600">{time}</div>
-                               </div>
-                          </div>
-                     </div>
-                 </div>
-            </div>
-        )
-    };
-
     return (
         <div className="h-full bg-[#09090b] flex flex-col items-center justify-between font-sans relative">
-             {/* Fullscreen Overlay */}
-             {showFullscreen && <FullscreenSlate />}
-
+             
              {/* Clapperboard Container */}
              <div className="flex-1 w-full max-w-md flex flex-col items-center justify-center p-4">
-                <div className="w-full bg-white rounded-2xl shadow-2xl shadow-black/50 border border-gray-800 relative select-none z-20">
+                <div className="w-full bg-white rounded-2xl shadow-2xl shadow-black/50 border border-gray-800 relative select-none z-20 overflow-hidden">
                      
                      {/* 1. Header Stripe (Animated) */}
                      <div 
-                        className={`h-24 bg-[#1A1A1A] relative flex items-center overflow-hidden rounded-t-2xl origin-bottom-left transition-transform duration-100 ease-in ${isClapped ? 'rotate-[-10deg]' : 'rotate-0'}`}
+                        className={`h-24 bg-[#1A1A1A] relative flex items-center overflow-hidden rounded-t-2xl origin-bottom-left transition-transform duration-150 ease-in ${isClapped ? 'rotate-[-12deg]' : 'rotate-0'}`}
                         style={{ transformOrigin: '0% 100%' }}
                      >
                          {/* Decorative dots left */}
@@ -872,11 +835,33 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
 
                      {/* 2. Main Content */}
                      <div className="p-6 relative">
-                         {/* Production Title - Elevated Z-Index for Dropdown */}
-                         <div className="mb-6 border-b border-gray-100 pb-4 relative z-50">
+                         {showProjectSelect ? (
+                             <div className="absolute inset-0 bg-white z-20 p-4 flex flex-col animate-[fadeIn_0.2s_ease-out]">
+                                 <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-2">
+                                     <span className="font-bold text-gray-500 text-xs uppercase tracking-wider">选择项目</span>
+                                     <button onClick={() => setShowProjectSelect(false)} className="p-1 hover:bg-gray-100 rounded-full"><Icons.Close className="text-gray-400" width={20}/></button>
+                                 </div>
+                                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
+                                     {projects.map(p => (
+                                         <button 
+                                            key={p.id} 
+                                            onClick={() => { setSlate({...slate, prodTitle: p.title}); setShowProjectSelect(false); }}
+                                            className="w-full text-left p-3 rounded-lg hover:bg-yellow-50 font-bold text-sm text-gray-800 border border-gray-50 flex justify-between items-center group"
+                                         >
+                                            <span>{p.title}</span>
+                                            {slate.prodTitle === p.title && <Icons.Check width={16} className="text-[#FCD34D]" />}
+                                         </button>
+                                     ))}
+                                     {projects.length === 0 && <div className="text-center text-gray-400 text-xs py-8">暂无项目</div>}
+                                 </div>
+                             </div>
+                         ) : null}
+
+                         {/* Production Title - Click to Open Overlay */}
+                         <div className="mb-6 border-b border-gray-100 pb-4 relative z-10">
                              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">片名 PRODUCTION</div>
                              <button 
-                                onClick={() => setShowProjectSelect(!showProjectSelect)}
+                                onClick={() => setShowProjectSelect(true)}
                                 className="w-full text-left flex items-center justify-between group"
                              >
                                 <span className={`text-3xl font-black truncate ${slate.prodTitle && slate.prodTitle !== '无项目' ? 'text-[#1A1A1A]' : 'text-gray-300'}`}>
@@ -884,49 +869,19 @@ const ClapperView = ({ onBack, projects }: { onBack: ()=>void, projects: Project
                                 </span>
                                 <UI.ChevronDown width={24} className="text-gray-300 group-hover:text-[#FCD34D] transition-colors"/>
                              </button>
-                             
-                             {/* Dropdown - Fixed Z-index and Positioning */}
-                             {showProjectSelect && (
-                                 <div className="absolute top-full left-0 w-full mt-2 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden animate-slide-up text-black z-[100] max-h-48 overflow-y-auto custom-scrollbar">
-                                     {projects.length > 0 ? (
-                                         projects.map(p => (
-                                             <button
-                                                key={p.id}
-                                                onClick={() => {
-                                                    setSlate({...slate, prodTitle: p.title});
-                                                    setShowProjectSelect(false);
-                                                }}
-                                                className="w-full text-left px-4 py-3 hover:bg-yellow-50 font-bold text-sm text-gray-800 border-b border-gray-50 last:border-0"
-                                             >
-                                                 {p.title}
-                                             </button>
-                                         ))
-                                     ) : (
-                                         <div className="px-4 py-3 text-sm text-gray-400 text-center">
-                                             暂无项目，请先去创建
-                                         </div>
-                                     )}
-                                 </div>
-                             )}
-                             
-                             {/* Backdrop for click-away */}
-                             {showProjectSelect && (
-                                 <div className="fixed inset-0 z-[-1]" onClick={() => setShowProjectSelect(false)}></div>
-                             )}
                          </div>
 
-                         {/* Grid - Row 1: Roll & Scene - Lower Z-Index */}
+                         {/* Grid - Row 1: Roll & Scene */}
                          <div className="grid grid-cols-2 gap-px bg-gray-100 border border-gray-100 mb-px relative z-10">
                              <NumberInput label="ROLL 卷号" value={slate.roll} onChange={(v)=>setSlate({...slate, roll: v})} />
                              <NumberInput label="SCENE 场号" value={slate.scene} onChange={(v)=>setSlate({...slate, scene: v})} />
                          </div>
 
-                         {/* Grid - Row 2: Shot, Take, Camera - Lower Z-Index */}
+                         {/* Grid - Row 2: Shot, Take, Camera */}
                          <div className="grid grid-cols-3 gap-px bg-gray-100 border border-gray-100 relative z-10">
                              <NumberInput label="SHOT 镜号" value={slate.shot} onChange={(v)=>setSlate({...slate, shot: v})} />
                              <NumberInput label="TAKE 次数" value={slate.take} onChange={(v)=>setSlate({...slate, take: v})} />
                              
-                             {/* Camera is typically letters, so keep text input but maybe simple toggle A/B/C? For now Keep standard input behavior for Cam */}
                              <div className="bg-white p-4 h-28 flex flex-col justify-center cursor-pointer active:bg-gray-50">
                                  <input 
                                      className="text-4xl font-mono font-bold text-[#1A1A1A] w-full bg-transparent outline-none mb-1 text-center"
@@ -1001,10 +956,9 @@ const MoreAppsView = () => {
     const openApp = (tool: any) => {
         if (tool.url) {
             // Attempt to open native app scheme first, then fallback to web
-            // This is a simple implementation. In a real PWA or Native wrapper, specific intent handling is needed.
             if (tool.scheme) {
                  window.location.href = tool.scheme;
-                 // Fallback if scheme fails (browser often shows error or does nothing, hard to detect in pure web without timeout hack)
+                 // Fallback to web if scheme fails (timeout hack)
                  setTimeout(() => {
                      window.open(tool.url, '_blank');
                  }, 1500);
@@ -1153,15 +1107,21 @@ const MoreAppsView = () => {
 
             <div>
                 <h3 className="text-xs font-bold text-gray-500 uppercase mb-4 tracking-wider">关于</h3>
-                <div className="space-y-3">
-                    <button onClick={()=>setShowThanks(true)} className="w-full bg-[#18181b] p-4 rounded-xl border border-white/5 shadow-sm flex items-center gap-3 hover:bg-white/5">
-                        <div className="w-8 h-8 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center"><UI.Heart width={16}/></div>
-                        <span className="text-sm font-bold">感谢作者</span>
-                    </button>
-                    <button onClick={()=>window.open('https://wxzstudio.edgeone.dev/', '_blank')} className="w-full bg-[#18181b] p-4 rounded-xl border border-white/5 shadow-sm flex items-center gap-3 hover:bg-white/5">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center"><UI.Link width={16}/></div>
-                        <span className="text-sm font-bold">访问官网</span>
-                    </button>
+                <div className="bg-[#18181b] rounded-xl border border-white/5 shadow-sm overflow-hidden">
+                     <button onClick={()=>setShowThanks(true)} className="w-full p-4 flex items-center justify-between hover:bg-white/5 border-b border-white/5 transition-colors group">
+                         <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center"><UI.Heart width={16}/></div>
+                             <span className="text-sm font-bold text-gray-200">感谢作者</span>
+                         </div>
+                         <UI.ChevronRight width={16} className="text-gray-500 group-hover:text-white"/>
+                     </button>
+                     <button onClick={()=>window.open('https://wxzstudio.edgeone.dev/', '_blank')} className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors group">
+                         <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center"><UI.Link width={16}/></div>
+                             <span className="text-sm font-bold text-gray-200">访问官网</span>
+                         </div>
+                         <UI.ChevronRight width={16} className="text-gray-500 group-hover:text-white"/>
+                     </button>
                 </div>
             </div>
 

@@ -165,6 +165,17 @@ export const Icons = {
       <line x1="12" y1="8" x2="12.01" y2="8"></line>
     </svg>
   ),
+  Heart: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+    </svg>
+  ),
+  Link: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+    </svg>
+  ),
   Battery: (props: IconProps) => (
      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <rect x="1" y="6" width="18" height="12" rx="2" ry="2"></rect>
@@ -256,6 +267,58 @@ export const Icons = {
         <polyline points="12 6 12 12 16 14"></polyline>
       </svg>
   ),
+  // Pro Camera Icons
+  Lens: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="10"></circle>
+      <circle cx="12" cy="12" r="4"></circle>
+      <line x1="21.17" y1="8" x2="12" y2="8"></line>
+      <line x1="3.95" y1="6.06" x2="8.54" y2="14"></line>
+      <line x1="10.88" y1="21.94" x2="15.46" y2="14"></line>
+    </svg>
+  ),
+  Shutter: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
+      <circle cx="12" cy="12" r="4"></circle>
+    </svg>
+  ),
+  Aperture: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="14.31" y1="8" x2="20.05" y2="17.94"></line>
+      <line x1="9.69" y1="8" x2="21.17" y2="8"></line>
+      <line x1="7.38" y1="12" x2="13.12" y2="2.06"></line>
+      <line x1="9.69" y1="16" x2="3.95" y2="6.06"></line>
+      <line x1="14.31" y1="16" x2="2.83" y2="16"></line>
+      <line x1="16.62" y1="12" x2="10.88" y2="21.94"></line>
+    </svg>
+  ),
+  Focus: (props: IconProps) => (
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+       <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+       <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+       <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+       <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+       <circle cx="12" cy="12" r="3"></circle>
+     </svg>
+  ),
+  Palette: (props: IconProps) => (
+     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+       <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle>
+       <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle>
+       <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle>
+       <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle>
+       <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+     </svg>
+  ),
+  Viewfinder: (props: IconProps) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+         <path d="M5 4h4v2H5v4H3V6a2 2 0 0 1 2-2zM15 4h4a2 2 0 0 1 2 2v4h-2V6h-4V4zM5 20h4v-2H5v-4H3v4a2 2 0 0 0 2 2zM19 20h-4v-2h4v-4h2v4a2 2 0 0 1-2 2z" />
+         <circle cx="12" cy="12" r="3" />
+         <path d="M12 9v-1M12 16v-1M9 12H8M16 12h-1" strokeWidth="2"/>
+      </svg>
+  )
 };
 
 export const TRANSLATIONS = {

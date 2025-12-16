@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons } from './constants';
 
 // --- Types ---
-type EditorTab = 'workspace' | 'storyboard' | 'plan' | 'callsheet' | 'apps';
+type EditorTab = 'projects' | 'viewfinder' | 'clapper' | 'apps';
+type ProjectMode = 'dashboard' | 'storyboard' | 'plan' | 'callsheet';
 type StoryboardMode = 'list' | 'board' | 'presentation';
 type PlanMode = 'list' | 'calendar';
 type AspectRatio = '16:9' | '2.35:1' | '4:3' | '1:1' | '9:16';
@@ -25,27 +26,22 @@ interface Shot {
     type: string;
     imgUrl?: string;
     isChecked: boolean;
+    linkedMedia?: string;
+    technical?: string;
 }
 
-interface TodoItem {
+interface PlanItem {
     id: string;
-    text: string;
-    done: boolean;
-    assignee: string;
+    date: string;
+    content: string;
 }
 
-interface ActivityLog {
-    id: string;
-    user: string;
-    action: string;
-    time: string;
-}
-
-interface Member {
-    id: string;
-    name: string;
-    role: string;
-    avatar: string;
+interface CallSheetData {
+    scene: string;
+    location: string;
+    startTime: string;
+    shootTime: string;
+    crew: { role: string; name: string }[];
 }
 
 // --- Icons (Local Wrappers) ---
@@ -68,15 +64,17 @@ const UI = {
 
 // --- COMPONENTS ---
 
-// 1. PROJECT LIST VIEW
-const ProjectListView = ({ onOpenProject }: { onOpenProject: (p: Project) => void }) => {
+// 1. PROJECT MANAGER (PROJECTS TAB)
+// Handles Listing and the "Dashboard" for a selected project
+const ProjectManager = ({ activeProject, onSelectProject, onBack, onOpenTool }: { activeProject: Project|null, onSelectProject: (p:Project)=>void, onBack: ()=>void, onOpenTool: (m:ProjectMode)=>void }) => {
+    // Shared State (Mocked)
     const [projects, setProjects] = useState<Project[]>([
         { id: '1', title: '2023 品牌宣传片', updatedAt: '2小时前', aspectRatio: '16:9', template: 'general' },
         { id: '2', title: '短剧《逆袭》', updatedAt: '昨天', aspectRatio: '9:16', template: 'short' }
     ]);
     const [showModal, setShowModal] = useState(false);
     
-    // Create Project Form State
+    // Create Form
     const [newTitle, setNewTitle] = useState('');
     const [template, setTemplate] = useState('general');
     const [ratio, setRatio] = useState('16:9');
@@ -93,317 +91,237 @@ const ProjectListView = ({ onOpenProject }: { onOpenProject: (p: Project) => voi
         setProjects([newProject, ...projects]);
         setShowModal(false);
         setNewTitle('');
-        onOpenProject(newProject);
     };
 
-    return (
-        <div className="min-h-screen bg-[#F7F8FA] p-6 pb-safe">
-            <h1 className="text-2xl font-black text-gray-900 mb-8">我的项目</h1>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                <button 
-                    onClick={() => setShowModal(true)}
-                    className="aspect-[4/3] bg-white rounded-2xl flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-[#FCD34D] hover:bg-yellow-50/50 transition-all group"
-                >
-                    <div className="w-10 h-10 rounded-full bg-gray-100 group-hover:bg-[#FCD34D] flex items-center justify-center transition-colors">
-                        <Icons.Add className="text-gray-500 group-hover:text-black"/>
+    const handleDelete = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if(window.confirm('确定要删除这个项目吗？')) {
+            setProjects(projects.filter(p => p.id !== id));
+            if(activeProject?.id === id) onBack();
+        }
+    };
+
+    // --- LIST VIEW ---
+    if (!activeProject) {
+        return (
+            <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto">
+                <h1 className="text-2xl font-black text-gray-900 mb-8">我的项目</h1>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <button 
+                        onClick={() => setShowModal(true)}
+                        className="aspect-[4/3] bg-white rounded-2xl flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-[#FCD34D] hover:bg-yellow-50/50 transition-all group"
+                    >
+                        <div className="w-10 h-10 rounded-full bg-gray-100 group-hover:bg-[#FCD34D] flex items-center justify-center transition-colors">
+                            <Icons.Add className="text-gray-500 group-hover:text-black"/>
+                        </div>
+                        <span className="text-xs font-bold text-gray-400 group-hover:text-gray-600">新建项目</span>
+                    </button>
+                    {projects.map(p => (
+                        <div key={p.id} onClick={() => onSelectProject(p)} className="aspect-[4/3] bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between border border-gray-100 relative group">
+                             <button onClick={(e) => handleDelete(p.id, e)} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full z-10">
+                                 <Icons.Trash width={14}/>
+                             </button>
+                             <div className="flex-1 flex items-center justify-center">
+                                 <UI.Folder />
+                             </div>
+                             <div>
+                                 <h3 className="font-bold text-sm text-gray-800 truncate">{p.title}</h3>
+                                 <div className="flex justify-between items-center mt-1">
+                                    <p className="text-[10px] text-gray-400">{p.updatedAt}</p>
+                                    <span className="text-[10px] bg-gray-100 px-1.5 rounded text-gray-500 font-mono">{p.aspectRatio}</span>
+                                 </div>
+                             </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Create Modal */}
+                {showModal && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                        <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-[slideUp_0.3s_ease-out]">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-bold">新建项目</h2>
+                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full"><Icons.Close /></button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1.5">项目名称</label>
+                                    <input autoFocus className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold focus:border-[#FCD34D] focus:bg-white outline-none" placeholder="输入项目标题..." value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5">模板</label>
+                                        <div className="relative">
+                                            <select value={template} onChange={e => setTemplate(e.target.value)} className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:border-[#FCD34D] outline-none">
+                                                <option value="general">通用视频</option>
+                                                <option value="tvc">TVC 广告</option>
+                                                <option value="short">短剧/短片</option>
+                                            </select>
+                                            <UI.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-4 h-4"/>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1.5">画幅</label>
+                                        <div className="relative">
+                                            <select value={ratio} onChange={e => setRatio(e.target.value)} className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:border-[#FCD34D] outline-none">
+                                                <option value="16:9">16:9</option>
+                                                <option value="9:16">9:16</option>
+                                                <option value="2.35:1">2.35:1</option>
+                                            </select>
+                                            <UI.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-4 h-4"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 mt-8">
+                                <button onClick={() => setShowModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-lg">取消</button>
+                                <button onClick={handleCreate} className="flex-1 py-3 text-sm font-bold bg-[#FCD34D] hover:bg-[#fbbf24] text-black rounded-lg">立即创建</button>
+                            </div>
+                        </div>
                     </div>
-                    <span className="text-xs font-bold text-gray-400 group-hover:text-gray-600">新建项目</span>
-                </button>
-                {projects.map(p => (
-                    <div key={p.id} onClick={() => onOpenProject(p)} className="aspect-[4/3] bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between border border-gray-100 relative group">
-                         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <button className="p-1 hover:bg-gray-100 rounded-full"><UI.MoreVertical width={16}/></button>
-                         </div>
-                         <div className="flex-1 flex items-center justify-center">
-                             <UI.Folder />
+                )}
+            </div>
+        );
+    }
+
+    // --- DASHBOARD VIEW (Inside Project) ---
+    return (
+        <div className="h-full bg-[#F7F8FA] flex flex-col">
+            <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 sticky top-0 z-20">
+                <div className="flex items-center gap-3">
+                    <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"><Icons.Back width={20}/></button>
+                    <div>
+                        <h1 className="font-bold text-sm truncate max-w-[200px]">{activeProject.title}</h1>
+                        <p className="text-[10px] text-gray-400">最后编辑: {activeProject.updatedAt}</p>
+                    </div>
+                </div>
+                <button className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><UI.MoreVertical width={20}/></button>
+            </header>
+            
+            <div className="flex-1 p-6 overflow-y-auto pb-32">
+                 <div className="grid grid-cols-2 gap-4">
+                     <button onClick={() => onOpenTool('storyboard')} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-[#FCD34D] transition-all text-left flex flex-col gap-4 group">
+                         <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                             <UI.Grid width={24} />
                          </div>
                          <div>
-                             <h3 className="font-bold text-sm text-gray-800 truncate">{p.title}</h3>
-                             <div className="flex justify-between items-center mt-1">
-                                <p className="text-[10px] text-gray-400">{p.updatedAt}</p>
-                                <span className="text-[10px] bg-gray-100 px-1.5 rounded text-gray-500 font-mono">{p.aspectRatio}</span>
-                             </div>
+                             <h3 className="font-bold text-gray-900">WXZ 分镜</h3>
+                             <p className="text-xs text-gray-400 mt-1">管理镜头与画面</p>
                          </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Create Project Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-                    <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-[slideUp_0.3s_ease-out]">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="text-xl font-bold">新建项目</h2>
-                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full"><Icons.Close /></button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-gray-500 mb-1.5">项目名称</label>
-                                <input 
-                                    autoFocus
-                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold focus:border-[#FCD34D] focus:bg-white outline-none transition-colors"
-                                    placeholder="输入项目标题..."
-                                    value={newTitle}
-                                    onChange={e => setNewTitle(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1.5">项目类型模板</label>
-                                    <div className="relative">
-                                        <select 
-                                            value={template}
-                                            onChange={e => setTemplate(e.target.value)}
-                                            className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:border-[#FCD34D] outline-none"
-                                        >
-                                            <option value="general">通用视频</option>
-                                            <option value="tvc">TVC 广告</option>
-                                            <option value="short">短剧/短片</option>
-                                            <option value="doc">纪录片</option>
-                                        </select>
-                                        <UI.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-4 h-4"/>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 mb-1.5">默认画幅</label>
-                                    <div className="relative">
-                                        <select 
-                                            value={ratio}
-                                            onChange={e => setRatio(e.target.value)}
-                                            className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:border-[#FCD34D] outline-none"
-                                        >
-                                            <option value="16:9">16:9 (横屏)</option>
-                                            <option value="9:16">9:16 (竖屏)</option>
-                                            <option value="2.35:1">2.35:1 (宽幅)</option>
-                                            <option value="4:3">4:3 (复古)</option>
-                                            <option value="1:1">1:1 (正方)</option>
-                                        </select>
-                                        <UI.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-4 h-4"/>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-8">
-                            <button onClick={() => setShowModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-lg transition-colors">取消</button>
-                            <button onClick={handleCreate} className="flex-1 py-3 text-sm font-bold bg-[#FCD34D] hover:bg-[#fbbf24] text-black rounded-lg shadow-sm transition-colors">立即创建</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// 2. WORKSPACE VIEW
-const WorkspaceView = () => {
-    const [todos, setTodos] = useState<TodoItem[]>([
-        { id: '1', text: '确认场地A的电源情况', done: false, assignee: '制片' },
-        { id: '2', text: '租赁 Arri Alexa Mini', done: true, assignee: '摄影' },
-        { id: '3', text: '修改第5场分镜草图', done: false, assignee: '导演' },
-    ]);
-    const logs: ActivityLog[] = [
-        { id: '1', user: '导演', action: '更新了 Sc 3 的分镜', time: '10分钟前' },
-        { id: '2', user: '摄影师', action: '上传了现场勘景图', time: '1小时前' },
-    ];
-    const members: Member[] = [
-        { id: '1', name: 'WXZ Studio', role: 'Director', avatar: 'DIR' },
-        { id: '2', name: 'Alex', role: 'DOP', avatar: 'DP' },
-    ];
-    const toggleTodo = (id: string) => setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
-
-    return (
-        <div className="h-full bg-[#F7F8FA] p-6 overflow-y-auto custom-scrollbar pb-32">
-            <div className="max-w-5xl mx-auto">
-                <div className="flex items-center justify-between mb-6">
-                    <div>
-                        <h1 className="text-2xl font-black">团队工作台</h1>
-                        <p className="text-xs text-gray-400 tracking-wider mt-1 uppercase">Team Workspace</p>
-                    </div>
-                    <div className="flex -space-x-2">
-                         {members.map(m => (
-                             <div key={m.id} className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white ring-1 ring-gray-100" title={m.role}>
-                                 {m.avatar}
-                             </div>
-                         ))}
-                         <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border-2 border-white text-gray-400 hover:bg-[#FCD34D] hover:text-black transition-colors">
-                             <Icons.Add width={14}/>
-                         </button>
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-center mb-6">
-                            <h2 className="font-bold text-lg flex items-center gap-2"><UI.CheckCircle /> 待办事项</h2>
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-500">{todos.filter(t=>!t.done).length}</span>
-                        </div>
-                        <div className="space-y-3">
-                            {todos.map(todo => (
-                                <div key={todo.id} onClick={() => toggleTodo(todo.id)} className="flex items-start gap-3 cursor-pointer group p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors ${todo.done ? 'bg-green-500 border-green-500' : 'border-gray-300 group-hover:border-gray-400'}`}>
-                                        {todo.done && <Icons.Check width={10} strokeWidth={4} className="text-white"/>}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className={`text-sm font-medium ${todo.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{todo.text}</div>
-                                    </div>
-                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded self-start">{todo.assignee}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                        <h2 className="font-bold text-lg mb-6 flex items-center gap-2"><UI.Clock /> 操作动态</h2>
-                        <div className="relative border-l border-gray-100 pl-6 space-y-8">
-                            {logs.map(log => (
-                                <div key={log.id} className="relative">
-                                    <div className="absolute -left-[29px] top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-sm"></div>
-                                    <div className="text-sm"><span className="font-bold text-gray-900">{log.user}</span> <span className="text-gray-600">{log.action}</span></div>
-                                    <div className="text-[10px] text-gray-400 mt-1 font-mono">{log.time}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
+                     </button>
+                     <button onClick={() => onOpenTool('plan')} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-[#FCD34D] transition-all text-left flex flex-col gap-4 group">
+                         <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                             <UI.Calendar width={24} />
+                         </div>
+                         <div>
+                             <h3 className="font-bold text-gray-900">拍摄计划</h3>
+                             <p className="text-xs text-gray-400 mt-1">日程与统筹</p>
+                         </div>
+                     </button>
+                     <button onClick={() => onOpenTool('callsheet')} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-[#FCD34D] transition-all text-left flex flex-col gap-4 group col-span-2">
+                         <div className="w-12 h-12 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                             <UI.FileText width={24} />
+                         </div>
+                         <div>
+                             <h3 className="font-bold text-gray-900">通告单</h3>
+                             <p className="text-xs text-gray-400 mt-1">每日拍摄通知与集合信息</p>
+                         </div>
+                     </button>
+                 </div>
             </div>
         </div>
     );
 };
 
-// 3. STORYBOARD VIEW
-const StoryboardView = ({ projectRatio }: { projectRatio: AspectRatio }) => {
+// 2. STORYBOARD TOOL (Inside Project)
+const StoryboardView = ({ projectRatio, onBack, shots, setShots }: any) => {
     const [mode, setMode] = useState<StoryboardMode>('list');
     const [aspect, setAspect] = useState<AspectRatio>(projectRatio || '16:9');
-    const [shots, setShots] = useState<Shot[]>([
-        { id: '1', shotNo: '1', scene: '1', duration: '5s', content: '男主走进房间', notes: '光线要暗', type: 'WS', isChecked: false }
-    ]);
 
     const addShot = () => {
         const newShot = {
             id: Date.now().toString(),
             shotNo: (shots.length + 1).toString(),
-            scene: '', duration: '', content: '', notes: '', type: '', isChecked: false
+            scene: '', duration: '3s', content: '', notes: '', type: 'WS', isChecked: false
         };
         setShots([...shots, newShot]);
     };
 
+    const updateShot = (id: string, field: string, val: string) => {
+        setShots(shots.map((s:any) => s.id === id ? { ...s, [field]: val } : s));
+    };
+
     return (
         <div className={`flex flex-col h-full ${mode === 'presentation' ? 'bg-black text-white z-50 fixed inset-0' : 'bg-[#F7F8FA]'}`}>
-            <div className={`px-4 md:px-6 py-3 flex items-center justify-between z-20 overflow-x-auto gap-4 ${mode === 'presentation' ? 'bg-transparent text-white fixed top-0 w-full hover:bg-black/50 transition-colors' : 'bg-white border-b border-gray-200 sticky top-0'}`}>
-                 <div className="flex items-center gap-4 flex-shrink-0">
-                     {mode !== 'presentation' && (
-                         <div className="flex bg-gray-100 rounded-lg p-0.5">
-                             <button onClick={()=>setMode('list')} className={`p-1.5 rounded-md transition-all ${mode==='list'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.List width={16}/></button>
-                             <button onClick={()=>setMode('board')} className={`p-1.5 rounded-md transition-all ${mode==='board'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.Grid width={16}/></button>
-                         </div>
-                     )}
-                     <span className="font-bold text-lg hidden md:block">制作分镜</span>
+            {/* Toolbar */}
+            <div className={`px-4 py-3 flex items-center justify-between z-20 ${mode === 'presentation' ? 'absolute top-0 w-full hover:bg-black/50' : 'bg-white border-b border-gray-200 sticky top-0'}`}>
+                 <div className="flex items-center gap-3">
+                     {mode !== 'presentation' && <button onClick={onBack}><Icons.Back width={20}/></button>}
+                     <span className="font-bold text-lg">WXZ 分镜</span>
                  </div>
-
-                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-                     {/* Functional Aspect Ratio Dropdown */}
-                     <div className="relative group">
-                        <select 
-                            value={aspect} 
-                            onChange={(e)=>setAspect(e.target.value as AspectRatio)}
-                            className={`appearance-none text-xs font-bold rounded-lg pl-3 pr-8 py-2 outline-none cursor-pointer transition-colors ${mode === 'presentation' ? 'bg-white/20 text-white border-none' : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'}`}
-                        >
-                            <option value="16:9">16:9</option>
-                            <option value="2.35:1">2.35:1</option>
-                            <option value="4:3">4:3</option>
-                            <option value="1:1">1:1</option>
-                            <option value="9:16">9:16</option>
-                        </select>
-                        <UI.ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none ${mode === 'presentation' ? 'text-white' : 'text-gray-500'}`} />
-                     </div>
-                     
-                     <div className="hidden md:flex items-center gap-2">
-                         <button className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" title="批量上传"><Icons.Upload width={18}/></button>
-                         <button className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" title="PDF导出"><UI.Download width={18}/></button>
-                     </div>
-                     
-                     <button 
-                        onClick={() => setMode(mode === 'presentation' ? 'list' : 'presentation')}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors whitespace-nowrap ${mode==='presentation'?'bg-[#FCD34D] text-black':'bg-black text-white hover:bg-gray-800'}`}
-                     >
-                        {mode === 'presentation' ? <Icons.Close width={14}/> : <UI.Play width={14}/>}
-                        {mode === 'presentation' ? '退出' : '放映'}
+                 <div className="flex items-center gap-2">
+                     {mode !== 'presentation' && (
+                        <div className="relative">
+                            <select value={aspect} onChange={(e)=>setAspect(e.target.value as AspectRatio)} className="appearance-none bg-gray-50 border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-bold outline-none">
+                                <option value="16:9">16:9</option><option value="2.35:1">2.35:1</option><option value="4:3">4:3</option><option value="1:1">1:1</option><option value="9:16">9:16</option>
+                            </select>
+                            <UI.ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none"/>
+                        </div>
+                     )}
+                     <button onClick={() => setMode(mode === 'presentation' ? 'list' : 'presentation')} className="bg-[#FCD34D] text-black px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
+                        {mode === 'presentation' ? '退出' : <><UI.Play width={14}/> 放映</>}
                      </button>
                  </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-32">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pb-32">
                 {mode === 'presentation' ? (
                      <div className="max-w-6xl mx-auto h-full flex items-center justify-center p-4">
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
-                             {shots.map(s => (
-                                 <div key={s.id} className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-2xl border border-white/10">
-                                     <div className="bg-black/50 w-full relative group" style={{aspectRatio: aspect.replace(':','/')}}>
-                                          <div className="absolute inset-0 flex items-center justify-center text-white/20">
-                                              <Icons.Video width={48} height={48}/>
-                                          </div>
-                                     </div>
-                                     <div className="p-4">
-                                         <h3 className="text-xl font-bold mb-1 text-gray-200">Shot {s.shotNo}</h3>
-                                         <p className="text-gray-400 text-sm leading-relaxed">{s.content || '暂无描述'}</p>
+                         {/* Simple Presentation Grid */}
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+                             {shots.slice(0,2).map((s:any) => (
+                                 <div key={s.id} className="bg-[#1a1a1a] rounded-xl overflow-hidden border border-white/10">
+                                     <div className="bg-black/50 w-full relative" style={{aspectRatio: aspect.replace(':','/')}}>
+                                          {s.linkedMedia ? <img src={s.linkedMedia} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center text-white/20"><Icons.Video width={48}/></div>}
                                      </div>
                                  </div>
                              ))}
                          </div>
                      </div>
-                ) : mode === 'list' ? (
-                    <div className="max-w-5xl mx-auto space-y-4">
-                        {shots.map((shot) => (
+                ) : (
+                    <div className="max-w-3xl mx-auto space-y-4">
+                        {shots.map((shot: any) => (
                              <div key={shot.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 items-start group hover:border-[#FCD34D] transition-colors">
                                  <div className="font-mono text-gray-400 font-bold pt-1 w-8">#{shot.shotNo}</div>
-                                 
-                                 <div className="w-24 md:w-32 bg-gray-100 rounded-lg flex-shrink-0 relative cursor-pointer overflow-hidden border border-gray-200" style={{aspectRatio: aspect.replace(':','/')}}>
-                                      <div className="absolute inset-0 flex items-center justify-center text-gray-300"><Icons.Video width={20}/></div>
-                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition-opacity">更换</div>
+                                 <div className="w-24 bg-gray-100 rounded-lg flex-shrink-0 relative overflow-hidden border border-gray-200" style={{aspectRatio: aspect.replace(':','/')}}>
+                                      {shot.linkedMedia ? <img src={shot.linkedMedia} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center text-gray-300"><Icons.Video width={20}/></div>}
                                  </div>
-
-                                 <div className="flex-1 min-w-0">
+                                 <div className="flex-1 min-w-0 space-y-2">
                                      <textarea 
-                                        className="w-full bg-transparent outline-none text-sm resize-none h-16 placeholder-gray-300 mb-2" 
-                                        placeholder="输入画面描述..."
+                                        className="w-full bg-transparent outline-none text-sm resize-none h-14 placeholder-gray-300" 
+                                        placeholder="画面描述..."
                                         value={shot.content}
-                                        onChange={(e) => {
-                                            const newShots = [...shots];
-                                            newShots.find(s=>s.id===shot.id)!.content = e.target.value;
-                                            setShots(newShots);
-                                        }}
+                                        onChange={(e) => updateShot(shot.id, 'content', e.target.value)}
                                      />
                                      <div className="flex gap-2">
-                                         <input className="bg-gray-50 border border-gray-100 rounded px-2 py-1 text-xs w-16 text-center outline-none focus:border-[#FCD34D]" placeholder="景别" value={shot.type} onChange={()=>{}} />
-                                         <input className="bg-gray-50 border border-gray-100 rounded px-2 py-1 text-xs w-16 text-center outline-none focus:border-[#FCD34D]" placeholder="时长" value={shot.duration} onChange={()=>{}} />
+                                         {/* Native Selects for Mobile */}
+                                         <div className="relative">
+                                             <select value={shot.type} onChange={e=>updateShot(shot.id, 'type', e.target.value)} className="appearance-none bg-gray-50 border border-gray-100 rounded px-2 py-1 text-xs w-20 outline-none">
+                                                 <option value="WS">WS 全景</option><option value="FS">FS 全身</option><option value="MS">MS 中景</option><option value="CU">CU 特写</option><option value="ECU">ECU 大特</option>
+                                             </select>
+                                         </div>
+                                         <div className="relative">
+                                             <select value={shot.duration} onChange={e=>updateShot(shot.id, 'duration', e.target.value)} className="appearance-none bg-gray-50 border border-gray-100 rounded px-2 py-1 text-xs w-20 outline-none">
+                                                 <option value="1s">1s</option><option value="3s">3s</option><option value="5s">5s</option><option value="10s">10s</option>
+                                             </select>
+                                         </div>
                                      </div>
                                  </div>
                              </div>
                         ))}
-                        <button onClick={addShot} className="w-full py-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-[#FCD34D] hover:text-[#FCD34D] hover:bg-yellow-50/10 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        <button onClick={addShot} className="w-full py-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-[#FCD34D] hover:text-[#FCD34D] font-bold text-sm flex items-center justify-center gap-2">
                              <Icons.Add width={18}/> 添加镜头
-                        </button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {shots.map((shot) => (
-                             <div key={shot.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden group hover:border-[#FCD34D] transition-colors">
-                                  <div className="bg-gray-100 w-full relative" style={{aspectRatio: aspect.replace(':','/')}}>
-                                      <div className="absolute inset-0 flex items-center justify-center text-gray-300"><Icons.Video width={24}/></div>
-                                      <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">{shot.type || 'WS'}</div>
-                                  </div>
-                                  <div className="p-3">
-                                      <div className="flex justify-between items-center mb-1">
-                                          <span className="font-bold text-xs">Shot {shot.shotNo}</span>
-                                          <span className="text-[10px] text-gray-400">{shot.duration}</span>
-                                      </div>
-                                      <p className="text-[10px] text-gray-500 line-clamp-2">{shot.content || '无描述'}</p>
-                                  </div>
-                             </div>
-                        ))}
-                        <button onClick={addShot} className="rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-[#FCD34D] hover:text-[#FCD34D] transition-all min-h-[120px]">
-                            <Icons.Add width={24}/>
                         </button>
                     </div>
                 )}
@@ -412,97 +330,197 @@ const StoryboardView = ({ projectRatio }: { projectRatio: AspectRatio }) => {
     );
 };
 
-// 4. PLAN VIEW
-const PlanView = () => {
-    const [mode, setMode] = useState<PlanMode>('list');
+// 3. SHOOTING PLAN TOOL
+const PlanTool = ({ onBack }: { onBack: ()=>void }) => {
+    const [plans, setPlans] = useState<PlanItem[]>([]);
+    const [showModal, setShowModal] = useState(false);
+    const [newDate, setNewDate] = useState('');
+    const [newContent, setNewContent] = useState('');
+
+    const addPlan = () => {
+        if(!newContent) return;
+        setPlans([...plans, { id: Date.now().toString(), date: newDate || '待定', content: newContent }]);
+        setShowModal(false);
+        setNewContent('');
+        setNewDate('');
+    };
+
     return (
         <div className="flex flex-col h-full bg-[#F7F8FA]">
-             <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-gray-200 sticky top-0 z-10">
-                 <div className="flex items-center gap-4">
+             <div className="bg-white px-4 py-3 flex items-center justify-between border-b border-gray-200 sticky top-0 z-10">
+                 <div className="flex items-center gap-3">
+                     <button onClick={onBack}><Icons.Back width={20}/></button>
                      <h2 className="text-lg font-bold">拍摄计划</h2>
-                     <div className="flex bg-gray-100 rounded-lg p-0.5">
-                         <button onClick={()=>setMode('list')} className={`p-1.5 rounded-md transition-all ${mode==='list'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.List width={16}/></button>
-                         <button onClick={()=>setMode('calendar')} className={`p-1.5 rounded-md transition-all ${mode==='calendar'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.Calendar width={16}/></button>
-                     </div>
                  </div>
-                 <button className="bg-[#181818] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors shadow-sm">新建</button>
+                 <div className="flex gap-2">
+                     <button className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">同步日历</button>
+                     <button onClick={()=>setShowModal(true)} className="bg-[#181818] text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">新建</button>
+                 </div>
              </div>
-             <div className="flex-1 p-4 md:p-6 overflow-y-auto pb-32">
-                 {mode === 'list' ? (
-                     <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
-                         <UI.List width={48} className="opacity-20"/>
+             
+             <div className="flex-1 p-4 overflow-y-auto pb-32">
+                 {plans.length === 0 ? (
+                     <div className="h-64 flex flex-col items-center justify-center text-gray-400 gap-2">
+                         <UI.Calendar width={48} className="opacity-20"/>
                          <p className="text-sm">暂无计划</p>
                      </div>
                  ) : (
-                     <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                         {[...Array(5)].map((_, i) => (
-                             <div key={i} className="bg-white p-4 rounded-xl border border-gray-200 min-h-[100px] shadow-sm">
-                                 <div className="text-xs font-bold text-gray-400 mb-2">10月{24+i}日</div>
-                                 {i===0 && <div className="bg-[#FCD34D] text-black text-xs p-2 rounded font-bold">外景拍摄 Day 1</div>}
+                     <div className="space-y-3">
+                         {plans.map(p => (
+                             <div key={p.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex gap-4">
+                                 <div className="bg-gray-100 rounded px-2 py-1 h-fit text-center min-w-[60px]">
+                                     <div className="text-[10px] text-gray-400">DATE</div>
+                                     <div className="text-sm font-bold">{p.date}</div>
+                                 </div>
+                                 <div className="flex-1 text-sm font-medium text-gray-800">{p.content}</div>
                              </div>
                          ))}
                      </div>
                  )}
              </div>
+
+             {showModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl">
+                        <h3 className="text-lg font-bold mb-4">新建计划</h3>
+                        <div className="space-y-4">
+                            <input type="date" className="w-full bg-gray-50 border rounded-lg px-3 py-2 text-sm" value={newDate} onChange={e=>setNewDate(e.target.value)} />
+                            <textarea className="w-full bg-gray-50 border rounded-lg px-3 py-2 text-sm h-24" placeholder="拍摄内容..." value={newContent} onChange={e=>setNewContent(e.target.value)} />
+                        </div>
+                        <div className="flex gap-3 mt-6">
+                            <button onClick={()=>setShowModal(false)} className="flex-1 py-2 text-gray-500 font-bold bg-gray-50 rounded-lg">取消</button>
+                            <button onClick={addPlan} className="flex-1 py-2 bg-[#FCD34D] text-black font-bold rounded-lg">添加</button>
+                        </div>
+                    </div>
+                </div>
+             )}
         </div>
     );
 };
 
-// 5. CALL SHEET
-const CallSheetView = () => (
-    <div className="h-full bg-[#F7F8FA] p-4 md:p-8 overflow-y-auto pb-32 flex justify-center">
-         <div className="w-full max-w-2xl bg-white min-h-[800px] shadow-sm border border-gray-200 p-8 md:p-12 relative">
-             <div className="text-center md:text-left mb-8 border-b-4 border-black pb-6">
-                 <h1 className="text-3xl md:text-4xl font-black uppercase">Call Sheet</h1>
-                 <div className="flex flex-col md:flex-row justify-between mt-2 text-gray-500 font-bold text-xs uppercase">
-                    <span>通告单 #12</span>
-                    <span>2023.10.24 (DAY 3)</span>
-                 </div>
+// 4. CALL SHEET TOOL
+const CallSheetTool = ({ onBack }: { onBack: ()=>void }) => {
+    const [data, setData] = useState<CallSheetData>({
+        scene: '23A, 24B', location: '创意产业园 A座', startTime: '06:30', shootTime: '08:00', crew: [{role: 'Director', name: 'WXZ'}, {role: 'DOP', name: 'Alex'}]
+    });
+
+    return (
+        <div className="h-full bg-[#F7F8FA] flex flex-col">
+             <div className="bg-white px-4 py-3 flex items-center gap-3 border-b border-gray-200 sticky top-0 z-10">
+                 <button onClick={onBack}><Icons.Back width={20}/></button>
+                 <h2 className="text-lg font-bold">通告单编辑</h2>
              </div>
-             <div className="space-y-6">
-                 <div className="bg-gray-50 p-4 rounded border border-gray-100">
-                     <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">Location</h3>
-                     <div className="font-bold">创意产业园 A座</div>
-                 </div>
-                 <div>
-                     <div className="bg-black text-white px-3 py-1 text-xs font-bold uppercase inline-block mb-3">Schedule</div>
-                     <div className="space-y-2 text-sm">
-                         <div className="flex justify-between border-b border-gray-100 py-2">
-                             <span className="font-mono font-bold">06:30</span>
-                             <span>全员集合</span>
+             <div className="flex-1 p-4 md:p-8 overflow-y-auto pb-32 flex justify-center">
+                 <div className="w-full max-w-xl bg-white shadow-sm border border-gray-200 p-8">
+                     <div className="border-b-4 border-black pb-4 mb-6">
+                         <h1 className="text-3xl font-black uppercase">Call Sheet</h1>
+                         <div className="text-gray-400 text-xs font-bold mt-1">NO. 12</div>
+                     </div>
+                     <div className="space-y-6">
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                 <label className="text-xs font-bold text-gray-400 uppercase">集合时间</label>
+                                 <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.startTime} onChange={e=>setData({...data, startTime: e.target.value})} />
+                             </div>
+                             <div>
+                                 <label className="text-xs font-bold text-gray-400 uppercase">开机时间</label>
+                                 <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.shootTime} onChange={e=>setData({...data, shootTime: e.target.value})} />
+                             </div>
                          </div>
-                         <div className="flex justify-between border-b border-gray-100 py-2">
-                             <span className="font-mono font-bold">08:00</span>
-                             <span>开机</span>
+                         <div>
+                             <label className="text-xs font-bold text-gray-400 uppercase">拍摄地点</label>
+                             <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.location} onChange={e=>setData({...data, location: e.target.value})} />
+                         </div>
+                         <div>
+                             <label className="text-xs font-bold text-gray-400 uppercase">场次</label>
+                             <input className="w-full border-b border-gray-200 py-1 font-bold outline-none focus:border-[#FCD34D]" value={data.scene} onChange={e=>setData({...data, scene: e.target.value})} />
                          </div>
                      </div>
                  </div>
              </div>
-         </div>
-    </div>
-);
+        </div>
+    );
+};
+
+// 5. CLAPPER VIEW (Global Tool)
+const ClapperView = () => {
+    const [running, setRunning] = useState(false);
+    const [time, setTime] = useState(0);
+
+    useEffect(() => {
+        let interval: any;
+        if (running) {
+            interval = setInterval(() => setTime(t => t + 10), 10);
+        }
+        return () => clearInterval(interval);
+    }, [running]);
+
+    const formatTime = (ms: number) => {
+        const date = new Date(ms);
+        return date.toISOString().substr(11, 11);
+    };
+
+    return (
+        <div className="h-full bg-[#202020] flex flex-col items-center justify-center p-4 pb-24">
+             <div 
+                className="w-full max-w-md aspect-[4/3] bg-white rounded-xl overflow-hidden shadow-2xl flex flex-col relative select-none cursor-pointer"
+                onClick={() => setRunning(!running)}
+            >
+                 <div className="h-14 bg-white border-b-4 border-black flex relative z-10">
+                     {Array.from({length: 8}).map((_,i) => (
+                         <div key={i} className="flex-1 border-r border-black transform -skew-x-12 bg-black/10 even:bg-transparent origin-bottom"></div>
+                     ))}
+                 </div>
+                 <div className="flex-1 bg-white p-4 flex flex-col justify-between">
+                     <div className="grid grid-cols-3 gap-0 border-4 border-black h-24">
+                         <div className="border-r-4 border-black flex flex-col items-center justify-center"><span className="text-[10px] font-black text-gray-400">SCENE</span><span className="text-3xl font-black">24A</span></div>
+                         <div className="border-r-4 border-black flex flex-col items-center justify-center"><span className="text-[10px] font-black text-gray-400">TAKE</span><span className="text-3xl font-black">3</span></div>
+                         <div className="flex flex-col items-center justify-center"><span className="text-[10px] font-black text-gray-400">ROLL</span><span className="text-3xl font-black">A01</span></div>
+                     </div>
+                     <div className="flex justify-between items-end px-2">
+                         <div className="text-xs font-bold text-gray-400">WXZ Studio</div>
+                         <div className="font-mono text-4xl font-black text-red-600 tracking-widest">{formatTime(time)}</div>
+                     </div>
+                 </div>
+                 {!running && <div className="absolute inset-0 bg-black/10 flex items-center justify-center pointer-events-none"><span className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold">Tap to Start</span></div>}
+             </div>
+        </div>
+    );
+};
 
 // 6. MORE APPS VIEW
 const MoreAppsView = () => {
     const tools = [
-        { id: 'batch', label: '批量上传', icon: Icons.Upload, color: 'bg-blue-100 text-blue-600' },
-        { id: 'pdf', label: 'PDF导出', icon: UI.Download, color: 'bg-red-100 text-red-600' },
-        { id: 'clapper', label: '电子场记', icon: UI.Clapper, color: 'bg-gray-800 text-white' },
-        { id: 'trash', label: '回收站', icon: UI.Trash, color: 'bg-gray-100 text-gray-600' },
-        { id: 'settings', label: '设置', icon: Icons.Settings, color: 'bg-gray-100 text-gray-600' },
-        { id: 'help', label: '帮助中心', icon: UI.Info, color: 'bg-yellow-100 text-yellow-700' },
+        { id: 'food', label: '今天吃什么', icon: UI.Food, color: 'bg-orange-100 text-orange-600' },
+        { id: 'calc', label: '计算器', icon: UI.Calculator, color: 'bg-gray-100 text-gray-600' },
+        { id: 'level', label: '水平仪', icon: UI.Level, color: 'bg-blue-100 text-blue-600' },
+        { id: 'compass', label: '指南针', icon: UI.Compass, color: 'bg-red-100 text-red-600' },
     ];
+
+    const [modal, setModal] = useState<{title:string, content:React.ReactNode}|null>(null);
+
+    const openTool = (id: string) => {
+        if(id === 'food') {
+            const foods = ['牛肉面', '麻辣烫', '沙拉', '汉堡', '盖饭', '饺子'];
+            setModal({
+                title: '今天吃什么',
+                content: <div className="text-center py-8"><h2 className="text-4xl font-bold animate-pulse">{foods[Math.floor(Math.random()*foods.length)]}</h2></div>
+            });
+        } else {
+            setModal({ title: '提示', content: <div className="p-4 text-center">功能开发中...</div> });
+        }
+    };
 
     return (
         <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto">
             <h1 className="text-2xl font-black text-gray-900 mb-8">更多应用</h1>
             
             <div className="mb-8">
-                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">常用工具</h3>
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">实用工具</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {tools.slice(0, 3).map(tool => (
-                        <button key={tool.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors group">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color} group-hover:scale-110 transition-transform`}>
+                    {tools.map(tool => (
+                        <button key={tool.id} onClick={()=>openTool(tool.id)} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color}`}>
                                 <tool.icon width={20} />
                             </div>
                             <span className="text-sm font-bold text-gray-700">{tool.label}</span>
@@ -512,51 +530,84 @@ const MoreAppsView = () => {
             </div>
 
             <div>
-                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">系统管理</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {tools.slice(3).map(tool => (
-                        <button key={tool.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-gray-300 transition-colors">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color}`}>
-                                <tool.icon width={20} />
-                            </div>
-                            <span className="text-sm font-bold text-gray-700">{tool.label}</span>
-                        </button>
-                    ))}
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">关于</h3>
+                <div className="space-y-3">
+                    <button className="w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 hover:bg-gray-50">
+                        <div className="w-8 h-8 rounded-full bg-pink-100 text-pink-500 flex items-center justify-center"><UI.Heart width={16}/></div>
+                        <span className="text-sm font-bold">感谢作者</span>
+                    </button>
+                    <button className="w-full bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3 hover:bg-gray-50">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-500 flex items-center justify-center"><UI.Link width={16}/></div>
+                        <span className="text-sm font-bold">访问官网</span>
+                    </button>
                 </div>
+            </div>
+
+            {modal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={()=>setModal(null)}>
+                    <div className="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl" onClick={e=>e.stopPropagation()}>
+                        <h3 className="text-lg font-bold mb-4">{modal.title}</h3>
+                        {modal.content}
+                        <button onClick={()=>setModal(null)} className="w-full mt-6 py-2 bg-gray-100 rounded-lg font-bold">关闭</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 7. VIEWFINDER VIEW (Kept largely the same, optimized for context)
+const ViewfinderView = ({ onLinkMedia }: { onLinkMedia: (url: string, meta: string) => void }) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [isRecording, setIsRecording] = useState(false);
+    
+    useEffect(() => {
+        let stream: MediaStream | null = null;
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(s => { stream = s; if (videoRef.current) videoRef.current.srcObject = s; })
+            .catch(console.error);
+        return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
+    }, []);
+
+    return (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col text-white pb-[80px]">
+            <div className="absolute top-4 left-4 z-20 bg-black/50 px-2 py-1 rounded text-xs font-mono text-green-400">STBY • 4K</div>
+            <div className="flex-1 relative flex items-center justify-center overflow-hidden bg-[#1a1a1a]">
+                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"/>
+                 <div className="absolute inset-0 border-[40px] border-black/80 pointer-events-none" style={{borderTopWidth: '60px', borderBottomWidth: '60px'}}></div>
+                 <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30 pointer-events-none"><div className="border border-white/50 col-start-2 row-start-2"></div></div>
+            </div>
+            <div className="h-32 bg-black/90 flex items-center justify-center relative z-20">
+                <button 
+                   onClick={() => { setIsRecording(true); setTimeout(() => { setIsRecording(false); onLinkMedia("https://images.unsplash.com/photo-1492691527719-9d1e07e534b4", "24mm | ISO 800"); }, 500); }}
+                   className={`w-16 h-16 rounded-full border-4 border-white flex items-center justify-center ${isRecording ? 'bg-red-500' : 'bg-transparent'}`}
+                >
+                    <div className="w-12 h-12 bg-white rounded-full"></div>
+                </button>
             </div>
         </div>
     );
 };
 
-// --- MAIN NAV BAR (Fixed Bottom) ---
+// --- MAIN NAV BAR ---
 const MainNavBar = ({ active, onChange }: { active: EditorTab; onChange: (t: EditorTab) => void }) => {
     const tabs: { id: EditorTab; icon: React.FC<any>; label: string }[] = [
-        { id: 'workspace', icon: UI.Users, label: '工作台' },
-        { id: 'storyboard', icon: UI.Grid, label: '分镜' },
-        { id: 'plan', icon: UI.Calendar, label: '计划' },
-        { id: 'callsheet', icon: UI.FileText, label: '通告' },
+        { id: 'projects', icon: UI.Folder, label: '我的项目' },
+        { id: 'viewfinder', icon: UI.Viewfinder, label: '取景器' },
+        { id: 'clapper', icon: UI.Clapper, label: '场记板' },
         { id: 'apps', icon: Icons.Apps, label: '更多' },
     ];
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 h-[80px] bg-white border-t border-gray-100 flex items-center justify-around px-2 md:px-6 pb-4 md:pb-0 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+        <div className="fixed bottom-0 left-0 right-0 h-[80px] bg-white border-t border-gray-100 flex items-center justify-around px-2 pb-safe z-50">
             {tabs.map((t) => {
                 const isActive = active === t.id;
                 return (
-                    <button 
-                        key={t.id} 
-                        onClick={() => onChange(t.id)}
-                        className="flex flex-col items-center justify-center gap-1 w-full h-full group active:scale-95 transition-transform"
-                    >
-                        <div className={`
-                            h-8 w-14 rounded-full flex items-center justify-center transition-all duration-300
-                            ${isActive ? 'bg-black text-[#FCD34D]' : 'bg-transparent text-gray-400 group-hover:bg-gray-50'}
-                        `}>
-                            <t.icon width={20} height={20} strokeWidth={isActive ? 2.5 : 2} />
+                    <button key={t.id} onClick={() => onChange(t.id)} className="flex flex-col items-center justify-center gap-1 w-full h-full active:scale-95 transition-transform">
+                        <div className={`h-8 w-14 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-black text-[#FCD34D]' : 'text-gray-400'}`}>
+                            <t.icon width={20} strokeWidth={isActive ? 2.5 : 2} />
                         </div>
-                        <span className={`text-[10px] font-bold transition-colors ${isActive ? 'text-black' : 'text-gray-400'}`}>
-                            {t.label}
-                        </span>
+                        <span className={`text-[10px] font-bold ${isActive ? 'text-black' : 'text-gray-400'}`}>{t.label}</span>
                     </button>
                 )
             })}
@@ -564,64 +615,62 @@ const MainNavBar = ({ active, onChange }: { active: EditorTab; onChange: (t: Edi
     );
 };
 
-// --- APP SHELL ---
+// --- APP ROOT ---
 const App: React.FC = () => {
-    // Top-level state determines if we are selecting a project or editing one
-    const [currentProject, setCurrentProject] = useState<Project | null>(null);
+    const [editorTab, setEditorTab] = useState<EditorTab>('projects');
+    const [activeProject, setActiveProject] = useState<Project | null>(null);
+    const [projectMode, setProjectMode] = useState<ProjectMode>('dashboard');
     
-    // Tab state belongs to the editor view
-    const [editorTab, setEditorTab] = useState<EditorTab>('workspace');
+    // Shared Data
+    const [shots, setShots] = useState<Shot[]>([{ id: '1', shotNo: '1', scene: '1', duration: '5s', content: '男主走进房间', notes: '', type: 'WS', isChecked: false, technical: '24mm' }]);
 
-    // When opening a project, default to workspace
-    const handleOpenProject = (p: Project) => {
-        setCurrentProject(p);
-        setEditorTab('workspace');
+    // Nav Helpers
+    const handleSelectProject = (p: Project) => {
+        setActiveProject(p);
+        setProjectMode('dashboard');
     };
 
-    // Going back clears the project
-    const handleBack = () => {
-        setCurrentProject(null);
+    const handleBackToProjects = () => {
+        setActiveProject(null);
     };
 
-    // --- VIEW LOGIC ---
-    // If no project is selected, show the list.
-    if (!currentProject) {
-        return <ProjectListView onOpenProject={handleOpenProject} />;
-    }
+    const handleBackToDashboard = () => {
+        setProjectMode('dashboard');
+    };
 
-    // If a project IS selected, show the Editor Layout (Header + Content + BottomNav)
+    const handleOpenTool = (mode: ProjectMode) => {
+        setProjectMode(mode);
+    };
+
+    // Render Content based on current state
+    const renderContent = () => {
+        if (editorTab === 'viewfinder') return <ViewfinderView onLinkMedia={(url, meta) => alert(`Media Captured: ${meta}`)} />;
+        if (editorTab === 'clapper') return <ClapperView />;
+        if (editorTab === 'apps') return <MoreAppsView />;
+        
+        // Projects Tab Logic
+        if (!activeProject) {
+            return <ProjectManager activeProject={null} onSelectProject={handleSelectProject} onBack={()=>{}} onOpenTool={()=>{}} />;
+        }
+
+        // Inside a Project
+        switch (projectMode) {
+            case 'storyboard':
+                return <StoryboardView projectRatio={activeProject.aspectRatio} onBack={handleBackToDashboard} shots={shots} setShots={setShots} />;
+            case 'plan':
+                return <PlanTool onBack={handleBackToDashboard} />;
+            case 'callsheet':
+                return <CallSheetTool onBack={handleBackToDashboard} />;
+            default:
+                return <ProjectManager activeProject={activeProject} onSelectProject={()=>{}} onBack={handleBackToProjects} onOpenTool={handleOpenTool} />;
+        }
+    };
+
     return (
-        <div className="h-screen w-full bg-white text-[#333] flex flex-col overflow-hidden font-sans">
-            {/* Top Bar (Editor Only) */}
-            <header className="h-14 border-b border-gray-100 bg-white flex items-center justify-between px-4 z-40 sticky top-0 flex-shrink-0">
-                 <div className="flex items-center gap-3">
-                     <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500">
-                         <Icons.Back width={20}/>
-                     </button>
-                     <div className="min-w-0">
-                         <div className="font-bold text-sm leading-tight truncate max-w-[150px] md:max-w-xs">{currentProject.title}</div>
-                         <div className="text-[10px] text-gray-400 leading-tight truncate">上次编辑: {currentProject.updatedAt}</div>
-                     </div>
-                 </div>
-                 <div className="flex items-center gap-2">
-                     <div className="hidden md:flex items-center gap-2 mr-4">
-                         <span className="w-6 h-6 rounded-full bg-gray-200 border border-white -ml-2 first:ml-0"></span>
-                         <span className="w-6 h-6 rounded-full bg-gray-300 border border-white -ml-2"></span>
-                     </div>
-                     <button className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><UI.Bell width={20}/></button>
-                 </div>
-            </header>
-
-            {/* Main Content Area (Scrollable with bottom padding) */}
-            <main className="flex-1 overflow-hidden relative bg-[#F7F8FA]">
-                {editorTab === 'workspace' && <WorkspaceView />}
-                {editorTab === 'storyboard' && <StoryboardView projectRatio={currentProject.aspectRatio} />}
-                {editorTab === 'plan' && <PlanView />}
-                {editorTab === 'callsheet' && <CallSheetView />}
-                {editorTab === 'apps' && <MoreAppsView />}
+        <div className="h-screen w-full bg-white text-[#333] flex flex-col font-sans">
+            <main className="flex-1 overflow-hidden relative">
+                {renderContent()}
             </main>
-
-            {/* Fixed Bottom Navigation */}
             <MainNavBar active={editorTab} onChange={setEditorTab} />
         </div>
     );

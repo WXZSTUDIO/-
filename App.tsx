@@ -1,335 +1,195 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icons } from './constants';
-import { geminiService } from './services/geminiService';
 
 // --- Types ---
-type Tab = 'food' | 'calc' | 'measure' | 'support';
-type MeasureMode = 'compass' | 'level';
+type EditorTab = 'workspace' | 'storyboard' | 'plan' | 'callsheet' | 'apps';
+type StoryboardMode = 'list' | 'board' | 'presentation';
+type PlanMode = 'list' | 'calendar';
+type AspectRatio = '16:9' | '2.35:1' | '4:3' | '1:1' | '9:16';
 
-interface Option {
-  id: string;
-  text: string;
-  weight: number; 
-  desc?: string; 
+interface Project {
+    id: string;
+    title: string;
+    updatedAt: string;
+    aspectRatio: AspectRatio;
+    template: string;
 }
 
-interface HistoryEvent {
-    year: string;
-    event: string;
+interface Shot {
+    id: string;
+    shotNo: string;
+    scene: string;
+    duration: string;
+    content: string;
+    notes: string;
+    type: string;
+    imgUrl?: string;
+    isChecked: boolean;
 }
 
-// --- Shared Components ---
+interface TodoItem {
+    id: string;
+    text: string;
+    done: boolean;
+    assignee: string;
+}
 
-// Dark Glass Card (Replaces M3Card)
-const DarkCard = ({ 
-    children, 
-    className = '', 
-    onClick, 
-    variant = 'surface' 
-}: { 
-    children: React.ReactNode, 
-    className?: string, 
-    onClick?: () => void,
-    variant?: 'surface' | 'primary' | 'secondary' | 'tertiary'
-}) => {
-    let bgStyle = "bg-[#111] border-white/10";
-    if (variant === 'primary') bgStyle = "bg-white/10 border-white/20"; 
+interface ActivityLog {
+    id: string;
+    user: string;
+    action: string;
+    time: string;
+}
+
+interface Member {
+    id: string;
+    name: string;
+    role: string;
+    avatar: string;
+}
+
+// --- Icons (Local Wrappers) ---
+const UI = {
+    ...Icons,
+    Grid: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+    List: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+    Calendar: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+    Clapper: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M4 11v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V11" /><path d="M20.6 6 3.4 11.5l1.3 4.2 16.6-5.4-1.3-4.3Z"/></svg>,
+    FileText: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+    Users: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    Play: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+    MoreVertical: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>,
+    CheckCircle: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+    Folder: (props: any) => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#E5E7EB" strokeWidth="1" {...props}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" fill="#F3F4F6"/></svg>,
+    Pen: (props: any) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>,
+    Download: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+    Maximize: (props: any) => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2-2h3"/></svg>
+};
+
+// --- COMPONENTS ---
+
+// 1. PROJECT LIST VIEW
+const ProjectListView = ({ onOpenProject }: { onOpenProject: (p: Project) => void }) => {
+    const [projects, setProjects] = useState<Project[]>([
+        { id: '1', title: '2023 品牌宣传片', updatedAt: '2小时前', aspectRatio: '16:9', template: 'general' },
+        { id: '2', title: '短剧《逆袭》', updatedAt: '昨天', aspectRatio: '9:16', template: 'short' }
+    ]);
+    const [showModal, setShowModal] = useState(false);
     
-    return (
-        <div 
-            onClick={onClick}
-            className={`
-                backdrop-blur-md border rounded-[24px] p-6 transition-all duration-300
-                ${bgStyle} ${className} 
-                ${onClick ? 'active:scale-[0.98] cursor-pointer hover:bg-white/5' : ''}
-            `}
-        >
-            {children}
-        </div>
-    );
-};
+    // Create Project Form State
+    const [newTitle, setNewTitle] = useState('');
+    const [template, setTemplate] = useState('general');
+    const [ratio, setRatio] = useState('16:9');
 
-// Reusable Background Grid
-const GridBackground = () => (
-    <div className="absolute inset-0 opacity-20 pointer-events-none z-0" 
-        style={{ 
-            backgroundImage: `linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)`, 
-            backgroundSize: '40px 40px' 
-        }}>
-    </div>
-);
-
-// --- Feature Components ---
-
-// 1. Food View - Transparent Wireframe & Glowing Text
-const PastelWheel = ({ options, rotation, isSpinning, onSpin }: { options: Option[]; rotation: number; isSpinning: boolean; onSpin: () => void }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const size = 600; 
-  const centerX = size / 2;
-  const centerY = size / 2;
-  const radius = size / 2 - 20; 
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, size, size);
-
-    if (options.length === 0) return;
-
-    const totalWeight = options.reduce((sum, opt) => sum + opt.weight, 0);
-    let startAngle = 0;
-
-    options.forEach((opt, i) => {
-      const sliceAngle = (opt.weight / totalWeight) * 2 * Math.PI;
-      const endAngle = startAngle + sliceAngle;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(centerX, centerY);
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-      ctx.lineTo(centerX, centerY);
-      
-      // No Fill - Transparent
-      // Separator lines - Subtle White
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; 
-      ctx.lineWidth = 1.5; 
-      ctx.stroke();
-
-      ctx.translate(centerX, centerY);
-      ctx.rotate(startAngle + sliceAngle / 2);
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      
-      // Glowing Text
-      ctx.fillStyle = '#FFFFFF'; 
-      ctx.shadowColor = 'rgba(255, 255, 255, 0.8)';
-      ctx.shadowBlur = 8;
-      
-      const fontSize = sliceAngle < 0.2 ? 24 : 32; 
-      ctx.font = `600 ${fontSize}px "Roboto Flex", sans-serif`; 
-      ctx.fillText(opt.text, radius - 50, 0);
-      ctx.restore();
-      startAngle = endAngle;
-    });
-  }, [options]);
-
-  return (
-    <div className="relative w-[256px] h-[256px] flex items-center justify-center my-8 group">
-       {/* Decor: Outer Glow Ring */}
-      <div className="absolute inset-0 rounded-full border border-white/20 shadow-[0_0_60px_rgba(255,255,255,0.05)] pointer-events-none"></div>
-      
-      {/* STATIC Glass Background Layer - Prevents wobble caused by rotating backdrop filters */}
-      <div className="absolute inset-0 rounded-full bg-white/20 backdrop-blur-md z-0"></div>
-
-      {/* Rotating Content Layer - Smoother Easing */}
-      <div 
-        className="relative w-full h-full rounded-full transition-transform duration-[5000ms] ease-[cubic-bezier(0.2,0,0,1)] will-change-transform z-10"
-        style={{ transform: `rotate(${rotation}deg)` }}
-      >
-         <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
-      </div>
-
-      {/* Center Pin - Minimalist (Scaled down ~20% from 60px to 48px) */}
-      <div className="absolute z-30 inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-[6px] h-[6px] rounded-full bg-white shadow-[0_0_10px_white] z-20"></div>
-          <div className="absolute w-[48px] h-[48px] rounded-full border border-white/10 bg-black/20 backdrop-blur-md"></div>
-      </div>
-      
-      {/* Indicator - Red Glowing Triangle (Scaled down ~20% from 16px to 13px) */}
-      <div className="absolute -top-[13px] left-1/2 transform -translate-x-1/2 z-40">
-         <div className="w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[13px] border-t-red-500 drop-shadow-[0_0_12px_rgba(255,59,48,0.8)]"></div>
-      </div>
-    </div>
-  );
-};
-
-const FoodView = () => {
-    const DEFAULT_OPTIONS = [
-        { id: '1', text: '火锅', weight: 5 }, 
-        { id: '2', text: '烧烤', weight: 5 }, 
-        { id: '3', text: '麻辣烫', weight: 5 }
-    ];
-    const [options, setOptions] = useState<Option[]>(DEFAULT_OPTIONS);
-    const [newOptionText, setNewOptionText] = useState('');
-    const [rotation, setRotation] = useState(0);
-    const [isSpinning, setIsSpinning] = useState(false);
-    const [winner, setWinner] = useState<Option | null>(null);
-    const [isAdding, setIsAdding] = useState(false);
-
-    const spinWheel = () => {
-        if (isSpinning || options.length < 2) return;
-        setIsSpinning(true);
-        setWinner(null);
-        
-        const randomOffset = Math.random() * 360;
-        const newRotation = rotation + 1800 + randomOffset;
-        setRotation(newRotation);
-        
-        setTimeout(() => {
-            const totalWeight = options.reduce((sum, opt) => sum + opt.weight, 0);
-            const actualRotation = newRotation % 360;
-            let angleAtPointer = (270 - actualRotation) % 360;
-            if (angleAtPointer < 0) angleAtPointer += 360;
-            
-            let currentAngle = 0;
-            let foundWinner = null;
-            
-            for (const opt of options) {
-                const sliceAngle = (opt.weight / totalWeight) * 360;
-                if (angleAtPointer >= currentAngle && angleAtPointer < currentAngle + sliceAngle) {
-                    foundWinner = opt;
-                    break;
-                }
-                currentAngle += sliceAngle;
-            }
-
-            setWinner(foundWinner || options[0]); 
-            setIsSpinning(false);
-        }, 5000); 
-    };
-
-    const addOption = () => {
-        if (!newOptionText.trim()) return;
-        setIsAdding(true);
-        const newId = Date.now().toString();
-        setTimeout(() => {
-            setOptions([...options, { id: newId, text: newOptionText.trim(), weight: 5 }]);
-            setNewOptionText('');
-            setIsAdding(false);
-        }, 150);
-    };
-
-    const removeOption = (id: string) => {
-        setOptions(options.filter(o => o.id !== id));
-    };
-
-    const randomizeWeights = () => {
-        const newOptions = options.map(opt => ({
-            ...opt,
-            weight: Math.floor(Math.random() * 10) + 1 
-        }));
-        setOptions(newOptions);
+    const handleCreate = () => {
+        if(!newTitle) return;
+        const newProject: Project = {
+            id: Date.now().toString(),
+            title: newTitle,
+            updatedAt: '刚刚',
+            aspectRatio: ratio as AspectRatio,
+            template: template
+        };
+        setProjects([newProject, ...projects]);
+        setShowModal(false);
+        setNewTitle('');
+        onOpenProject(newProject);
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#050505] text-white relative overflow-hidden transition-colors duration-500">
-             <GridBackground />
-            
-             {/* Content */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-32 relative z-10 flex flex-col justify-center">
-                <div className="flex flex-col items-center">
-                    <PastelWheel options={options} rotation={rotation} isSpinning={isSpinning} onSpin={spinWheel} />
-                    
-                    {/* Controls Container */}
-                    <div className="w-full mt-8 space-y-6 max-w-xs mx-auto">
-                        
-                        {/* Primary Action Group */}
-                        <div className="flex gap-4 px-2 justify-center">
-                             {/* Spin Button */}
-                             <button 
-                                onClick={spinWheel}
-                                disabled={isSpinning || options.length < 2}
-                                className={`
-                                    h-16 w-32 bg-white text-black rounded-full 
-                                    text-lg font-bold shadow-[0_0_20px_rgba(255,255,255,0.15)]
-                                    active:scale-[0.92] active:shadow-none
-                                    transition-all duration-300 ease-spring 
-                                    disabled:opacity-50 disabled:grayscale
-                                    flex items-center justify-center gap-2
-                                `}
-                            >
-                                {isSpinning ? '...' : '开始'}
-                            </button>
-
-                            {/* Randomize Button */}
-                            <button
-                                onClick={randomizeWeights}
-                                disabled={isSpinning}
-                                className="h-16 w-16 bg-[#1A1A1A] text-white border border-white/20 rounded-full flex items-center justify-center active:scale-90 transition-transform duration-300"
-                            >
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                                  <path d="M16 8h.01"></path>
-                                  <path d="M8 8h.01"></path>
-                                  <path d="M8 16h.01"></path>
-                                  <path d="M16 16h.01"></path>
-                                  <path d="M12 12h.01"></path>
-                                </svg>
-                            </button>
-                        </div>
-
-                        {/* Input & List Section */}
-                        <div className="bg-[#111] border border-white/10 rounded-[24px] p-5">
-                             <div className={`
-                                flex items-center gap-2 mb-4 bg-black rounded-full px-2 py-1.5 
-                                border border-white/10 focus-within:border-white/40 transition-all duration-300
-                                ${isAdding ? 'scale-[0.98]' : 'scale-100'}
-                             `}>
-                                 <input 
-                                    type="text" 
-                                    value={newOptionText}
-                                    onChange={(e) => setNewOptionText(e.target.value)}
-                                    placeholder="添加选项"
-                                    className="flex-1 h-9 bg-transparent px-3 outline-none text-base text-white placeholder-white/20 font-medium"
-                                    onKeyDown={(e) => e.key === 'Enter' && addOption()}
-                                 />
-                                 <button 
-                                    onClick={addOption} 
-                                    className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center active:rotate-90 transition-transform hover:bg-gray-200"
-                                >
-                                     <Icons.Add width={18} height={18} />
-                                 </button>
-                             </div>
-
-                             <div className="flex flex-wrap gap-2 max-h-[140px] overflow-y-auto custom-scrollbar">
-                                {options.map((opt, i) => (
-                                    <button 
-                                        key={opt.id}
-                                        onClick={() => removeOption(opt.id)}
-                                        className="
-                                            group relative pl-3 pr-2 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider
-                                            flex items-center gap-2 border border-white/10 bg-white/5 text-gray-300
-                                            hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50
-                                            transition-all active:scale-95
-                                        "
-                                    >
-                                        {opt.text}
-                                    </button>
-                                ))}
-                             </div>
-                        </div>
+        <div className="min-h-screen bg-[#F7F8FA] p-6 pb-safe">
+            <h1 className="text-2xl font-black text-gray-900 mb-8">我的项目</h1>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <button 
+                    onClick={() => setShowModal(true)}
+                    className="aspect-[4/3] bg-white rounded-2xl flex flex-col items-center justify-center gap-3 border-2 border-dashed border-gray-200 hover:border-[#FCD34D] hover:bg-yellow-50/50 transition-all group"
+                >
+                    <div className="w-10 h-10 rounded-full bg-gray-100 group-hover:bg-[#FCD34D] flex items-center justify-center transition-colors">
+                        <Icons.Add className="text-gray-500 group-hover:text-black"/>
                     </div>
-                </div>
+                    <span className="text-xs font-bold text-gray-400 group-hover:text-gray-600">新建项目</span>
+                </button>
+                {projects.map(p => (
+                    <div key={p.id} onClick={() => onOpenProject(p)} className="aspect-[4/3] bg-white rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer flex flex-col justify-between border border-gray-100 relative group">
+                         <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button className="p-1 hover:bg-gray-100 rounded-full"><UI.MoreVertical width={16}/></button>
+                         </div>
+                         <div className="flex-1 flex items-center justify-center">
+                             <UI.Folder />
+                         </div>
+                         <div>
+                             <h3 className="font-bold text-sm text-gray-800 truncate">{p.title}</h3>
+                             <div className="flex justify-between items-center mt-1">
+                                <p className="text-[10px] text-gray-400">{p.updatedAt}</p>
+                                <span className="text-[10px] bg-gray-100 px-1.5 rounded text-gray-500 font-mono">{p.aspectRatio}</span>
+                             </div>
+                         </div>
+                    </div>
+                ))}
             </div>
 
-            {/* Winner Reveal - Minimalist Dark Modal */}
-            {winner && (
-                <div 
-                    className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl transition-opacity duration-300" 
-                    onClick={() => setWinner(null)}
-                >
-                    <div 
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full max-w-xs text-center animate-[springUp_0.6s_both]"
-                    >
-                        <div className="text-[80px] mb-4">🎉</div>
-                        <div className="text-xs font-bold text-red-500 uppercase tracking-[0.2em] mb-4">结果</div>
-                        <h3 className="text-5xl font-light text-white mb-12 leading-tight">
-                            {winner.text}
-                        </h3>
-                        <button 
-                            onClick={() => setWinner(null)} 
-                            className="w-full h-14 border border-white/20 hover:bg-white/10 text-white rounded-full text-sm font-bold tracking-widest uppercase transition-colors"
-                        >
-                            关闭
-                        </button>
+            {/* Create Project Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+                    <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl animate-[slideUp_0.3s_ease-out]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold">新建项目</h2>
+                            <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full"><Icons.Close /></button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">项目名称</label>
+                                <input 
+                                    autoFocus
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-bold focus:border-[#FCD34D] focus:bg-white outline-none transition-colors"
+                                    placeholder="输入项目标题..."
+                                    value={newTitle}
+                                    onChange={e => setNewTitle(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1.5">项目类型模板</label>
+                                    <div className="relative">
+                                        <select 
+                                            value={template}
+                                            onChange={e => setTemplate(e.target.value)}
+                                            className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:border-[#FCD34D] outline-none"
+                                        >
+                                            <option value="general">通用视频</option>
+                                            <option value="tvc">TVC 广告</option>
+                                            <option value="short">短剧/短片</option>
+                                            <option value="doc">纪录片</option>
+                                        </select>
+                                        <UI.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-4 h-4"/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 mb-1.5">默认画幅</label>
+                                    <div className="relative">
+                                        <select 
+                                            value={ratio}
+                                            onChange={e => setRatio(e.target.value)}
+                                            className="w-full appearance-none bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm font-medium focus:border-[#FCD34D] outline-none"
+                                        >
+                                            <option value="16:9">16:9 (横屏)</option>
+                                            <option value="9:16">9:16 (竖屏)</option>
+                                            <option value="2.35:1">2.35:1 (宽幅)</option>
+                                            <option value="4:3">4:3 (复古)</option>
+                                            <option value="1:1">1:1 (正方)</option>
+                                        </select>
+                                        <UI.ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-4 h-4"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex gap-3 mt-8">
+                            <button onClick={() => setShowModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-lg transition-colors">取消</button>
+                            <button onClick={handleCreate} className="flex-1 py-3 text-sm font-bold bg-[#FCD34D] hover:bg-[#fbbf24] text-black rounded-lg shadow-sm transition-colors">立即创建</button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -337,320 +197,364 @@ const FoodView = () => {
     );
 };
 
-// 2. Calculator View - Dark Grid Style
-const CalcView = () => {
-    const [display, setDisplay] = useState('0');
-    const [firstOperand, setFirstOperand] = useState<number | null>(null);
-    const [operator, setOperator] = useState<string | null>(null);
-    const [waitingForSecondOperand, setWaitingForSecondOperand] = useState(false);
-    const [history, setHistory] = useState<string>('');
-
-    const inputDigit = (digit: string) => {
-        if (waitingForSecondOperand) { setDisplay(digit); setWaitingForSecondOperand(false); } 
-        else { setDisplay(display === '0' || display === 'Error' ? digit : display + digit); }
-    };
-    const inputDot = () => {
-        if (waitingForSecondOperand) { setDisplay('0.'); setWaitingForSecondOperand(false); return; }
-        if (!display.includes('.')) setDisplay(display + '.');
-    };
-    const clearAll = () => { setDisplay('0'); setHistory(''); setFirstOperand(null); setOperator(null); setWaitingForSecondOperand(false); };
-    const deleteLast = () => { if (waitingForSecondOperand) return; setDisplay(display.length === 1 ? '0' : display.slice(0, -1)); };
-    const toggleSign = () => { const val = parseFloat(display); if (val !== 0) setDisplay(String(val * -1)); };
-    const performOperation = (nextOperator: string) => {
-        const inputValue = parseFloat(display);
-        if (operator && waitingForSecondOperand) { setOperator(nextOperator); return; }
-        if (firstOperand === null) { setFirstOperand(inputValue); } else if (operator) {
-            const result = calculate(firstOperand, inputValue, operator);
-            const resStr = String(result).slice(0,12);
-            setDisplay(resStr);
-            setFirstOperand(parseFloat(resStr));
-        }
-        setWaitingForSecondOperand(true);
-        setOperator(nextOperator);
-        setHistory(`${inputValue} ${nextOperator}`);
-    };
-    const calculate = (first: number, second: number, op: string) => {
-        switch (op) { case '+': return first + second; case '-': return first - second; case '×': return first * second; case '÷': return second === 0 ? 'Error' : first / second; default: return second; }
-    };
-    const handleEqual = () => {
-        if (!operator || firstOperand === null) return;
-        const inputValue = parseFloat(display);
-        const result = calculate(firstOperand, inputValue, operator);
-        setDisplay(String(result).slice(0,12));
-        setFirstOperand(null); setOperator(null); setWaitingForSecondOperand(true); setHistory('');
-    };
-    const handlePress = (btn: string) => {
-        if (btn === 'C') clearAll(); else if (btn === '⌫') deleteLast(); else if (btn === '+/-') toggleSign();
-        else if (['÷', '×', '-', '+'].includes(btn)) performOperation(btn); else if (btn === '=') handleEqual(); else if (btn === '.') inputDot(); else inputDigit(btn);
-    };
-    const buttons = [['C', '()', '%', '÷'], ['7', '8', '9', '×'], ['4', '5', '6', '-'], ['1', '2', '3', '+'], ['+/-', '0', '.', '=']];
+// 2. WORKSPACE VIEW
+const WorkspaceView = () => {
+    const [todos, setTodos] = useState<TodoItem[]>([
+        { id: '1', text: '确认场地A的电源情况', done: false, assignee: '制片' },
+        { id: '2', text: '租赁 Arri Alexa Mini', done: true, assignee: '摄影' },
+        { id: '3', text: '修改第5场分镜草图', done: false, assignee: '导演' },
+    ]);
+    const logs: ActivityLog[] = [
+        { id: '1', user: '导演', action: '更新了 Sc 3 的分镜', time: '10分钟前' },
+        { id: '2', user: '摄影师', action: '上传了现场勘景图', time: '1小时前' },
+    ];
+    const members: Member[] = [
+        { id: '1', name: 'WXZ Studio', role: 'Director', avatar: 'DIR' },
+        { id: '2', name: 'Alex', role: 'DOP', avatar: 'DP' },
+    ];
+    const toggleTodo = (id: string) => setTodos(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
 
     return (
-        <div className="flex flex-col h-full bg-[#050505] text-white relative overflow-hidden">
-            <GridBackground />
-            
-            <div className="flex-1 flex flex-col justify-end items-end px-8 pb-8 relative z-10">
-                <div className="text-sm text-gray-500 font-mono mb-2 tracking-widest">{history}</div>
-                <div className={`text-[72px] font-light text-white leading-none tracking-tighter ${display.length > 8 ? 'text-[48px]' : ''}`}>{display}</div>
-            </div>
-            
-            {/* Dark Keypad */}
-            <div className="px-6 pb-28 pt-4 relative z-10">
-                <div className="grid grid-cols-4 gap-4">
-                    {buttons.flat().map((btn, i) => {
-                         const isAction = btn === '=';
-                         const isOp = ['÷','×','-','+'].includes(btn);
-                         const isFunc = ['C', '()', '%'].includes(btn);
-                         
-                         let bg = "bg-[#1A1A1A] text-white border border-white/5"; // Number
-                         if (isAction) bg = "bg-red-600 text-white border-none shadow-[0_0_15px_rgba(220,38,38,0.5)]"; // Red for Equals (Compass Needle)
-                         if (isOp) bg = "bg-[#2A2A2A] text-white border border-white/5";
-                         if (isFunc) bg = "bg-[#2A2A2A] text-gray-300";
-
-                         return (
-                             <button key={i} onClick={() => handlePress(btn)} className={`aspect-square rounded-full text-2xl font-light active:scale-90 transition-transform duration-200 flex items-center justify-center ${bg}`}>
-                                 {btn === '⌫' ? <Icons.Trash className="w-5 h-5" /> : btn}
-                             </button>
-                         );
-                    })}
+        <div className="h-full bg-[#F7F8FA] p-6 overflow-y-auto custom-scrollbar pb-32">
+            <div className="max-w-5xl mx-auto">
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 className="text-2xl font-black">团队工作台</h1>
+                        <p className="text-xs text-gray-400 tracking-wider mt-1 uppercase">Team Workspace</p>
+                    </div>
+                    <div className="flex -space-x-2">
+                         {members.map(m => (
+                             <div key={m.id} className="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center text-[10px] font-bold border-2 border-white ring-1 ring-gray-100" title={m.role}>
+                                 {m.avatar}
+                             </div>
+                         ))}
+                         <button className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center border-2 border-white text-gray-400 hover:bg-[#FCD34D] hover:text-black transition-colors">
+                             <Icons.Add width={14}/>
+                         </button>
+                    </div>
                 </div>
-            </div>
-        </div>
-    );
-};
-
-// 3. App Support View - Dark Grid Style
-const AppSupportView = () => {
-    
-    // Author Card - Clean Dark
-    const AuthorCard = () => (
-        <DarkCard variant="primary" className="mb-4 relative overflow-hidden group">
-            <div className="flex flex-col items-center text-center p-2 relative z-10">
-                <div className="w-16 h-16 rounded-full bg-white text-black flex items-center justify-center text-xl font-bold mb-4 shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-                    WXZ
-                </div>
-                <h2 className="text-xl font-bold text-white mb-1">WXZ 出品</h2>
-                <p className="text-xs text-gray-400 mb-6 uppercase tracking-widest">
-                    工程与设计
-                </p>
-                <a 
-                    href="https://wxzstudio.edgeone.dev/" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="px-6 py-2 rounded-full border border-white/20 text-white hover:bg-white hover:text-black transition-colors text-sm font-medium"
-                >
-                    访问官网
-                </a>
-            </div>
-        </DarkCard>
-    );
-
-    // Exchange Rate - HUD Style
-    const ExchangeRateCard = () => {
-        const [amount, setAmount] = useState<string>('100');
-        const [rates, setRates] = useState<any>({});
-
-        const fetchRates = async () => {
-            try {
-                const res = await fetch('https://api.exchangerate-api.com/v4/latest/CNY');
-                const data = await res.json();
-                setRates(data.rates);
-            } catch (e) {
-                setRates({ CNY: 1, USD: 0.14, JPY: 20.8, KRW: 185.5, TWD: 4.4 });
-            }
-        };
-
-        useEffect(() => { fetchRates(); }, []);
-        const convert = (c: string) => rates[c] ? (parseFloat(amount||'0')*rates[c]).toFixed(2) : '--';
-
-        return (
-            <DarkCard className="mb-4">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">实时汇率</h3>
-                    <span className="text-[10px] text-red-500 font-bold border border-red-500/30 px-2 py-0.5 rounded">LIVE</span>
-                </div>
-                
-                <div className="flex items-baseline gap-2 mb-6 border-b border-white/10 pb-2">
-                    <span className="text-lg text-white font-light">CNY</span>
-                    <input 
-                        type="number" 
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="bg-transparent flex-1 text-right text-3xl font-light text-white outline-none"
-                    />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                    {['USD', 'JPY', 'KRW', 'TWD'].map(cur => (
-                        <div key={cur} className="flex flex-col">
-                            <span className="text-[10px] text-gray-500 font-bold">{cur}</span>
-                            <span className="text-xl text-white font-mono">{convert(cur)}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="font-bold text-lg flex items-center gap-2"><UI.CheckCircle /> 待办事项</h2>
+                            <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-500">{todos.filter(t=>!t.done).length}</span>
                         </div>
-                    ))}
+                        <div className="space-y-3">
+                            {todos.map(todo => (
+                                <div key={todo.id} onClick={() => toggleTodo(todo.id)} className="flex items-start gap-3 cursor-pointer group p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors ${todo.done ? 'bg-green-500 border-green-500' : 'border-gray-300 group-hover:border-gray-400'}`}>
+                                        {todo.done && <Icons.Check width={10} strokeWidth={4} className="text-white"/>}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className={`text-sm font-medium ${todo.done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>{todo.text}</div>
+                                    </div>
+                                    <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded self-start">{todo.assignee}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                        <h2 className="font-bold text-lg mb-6 flex items-center gap-2"><UI.Clock /> 操作动态</h2>
+                        <div className="relative border-l border-gray-100 pl-6 space-y-8">
+                            {logs.map(log => (
+                                <div key={log.id} className="relative">
+                                    <div className="absolute -left-[29px] top-1 w-2.5 h-2.5 rounded-full bg-blue-500 border-2 border-white shadow-sm"></div>
+                                    <div className="text-sm"><span className="font-bold text-gray-900">{log.user}</span> <span className="text-gray-600">{log.action}</span></div>
+                                    <div className="text-[10px] text-gray-400 mt-1 font-mono">{log.time}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-            </DarkCard>
-        );
-    };
-
-    // Image Converter
-    const ImageConverterCard = () => {
-        const [selectedFile, setSelectedFile] = useState<File | null>(null);
-        return (
-            <DarkCard className="mb-4">
-                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">图片工具</h3>
-                 <button className="w-full h-12 border border-dashed border-white/30 rounded-lg flex items-center justify-center text-sm text-gray-400 hover:border-white hover:text-white transition-colors">
-                    上传图片
-                 </button>
-            </DarkCard>
-        );
-    };
-
-    return (
-        <div className="flex flex-col h-full bg-[#050505] text-white">
-            <GridBackground />
-            <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-24 pt-12 relative z-10">
-                <AuthorCard />
-                <ExchangeRateCard />
-                <ImageConverterCard />
             </div>
         </div>
     );
 };
 
-// 4. Compass & Level View (Unchanged logic, just ensure consistency)
-const CompassLevelView = () => {
-    const [mode, setMode] = useState<MeasureMode>('compass');
-    const [heading, setHeading] = useState(0); 
-    const [tiltX, setTiltX] = useState(0); 
-    const [tiltY, setTiltY] = useState(0); 
-    const [permissionGranted, setPermissionGranted] = useState(false);
+// 3. STORYBOARD VIEW
+const StoryboardView = ({ projectRatio }: { projectRatio: AspectRatio }) => {
+    const [mode, setMode] = useState<StoryboardMode>('list');
+    const [aspect, setAspect] = useState<AspectRatio>(projectRatio || '16:9');
+    const [shots, setShots] = useState<Shot[]>([
+        { id: '1', shotNo: '1', scene: '1', duration: '5s', content: '男主走进房间', notes: '光线要暗', type: 'WS', isChecked: false }
+    ]);
 
-    useEffect(() => {
-        if (typeof (DeviceOrientationEvent as any).requestPermission !== 'function') {
-            setPermissionGranted(true);
-        }
-    }, []);
-
-    const handleOrientation = useCallback((event: DeviceOrientationEvent) => {
-        if (event.alpha !== null) setHeading(event.alpha);
-        if (event.beta !== null) setTiltX(event.beta);
-        if (event.gamma !== null) setTiltY(event.gamma);
-    }, []);
-
-    useEffect(() => {
-        if (permissionGranted) {
-            window.addEventListener('deviceorientation', handleOrientation);
-            return () => window.removeEventListener('deviceorientation', handleOrientation);
-        }
-    }, [permissionGranted, handleOrientation]);
-
-    const requestPermission = async () => {
-        if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-            try {
-                const response = await (DeviceOrientationEvent as any).requestPermission();
-                if (response === 'granted') setPermissionGranted(true);
-            } catch (e) { console.error(e); }
-        }
+    const addShot = () => {
+        const newShot = {
+            id: Date.now().toString(),
+            shotNo: (shots.length + 1).toString(),
+            scene: '', duration: '', content: '', notes: '', type: '', isChecked: false
+        };
+        setShots([...shots, newShot]);
     };
 
-    const bubbleX = 50 + (tiltY / 45) * 40;
-    const bubbleY = 50 + (tiltX / 45) * 40;
-    const clampedX = Math.max(10, Math.min(90, bubbleX));
-    const clampedY = Math.max(10, Math.min(90, bubbleY));
-    const compassStyle = { transform: `rotate(${-heading}deg)` };
-
     return (
-        <div className="flex flex-col h-full bg-[#050505] text-white relative overflow-hidden">
-             <GridBackground />
-
-             {!permissionGranted && (
-                 <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm">
-                     <p className="mb-6 text-gray-300">需要指南针权限</p>
-                     <button onClick={requestPermission} className="px-6 py-3 bg-white text-black rounded-full font-bold">开启</button>
+        <div className={`flex flex-col h-full ${mode === 'presentation' ? 'bg-black text-white z-50 fixed inset-0' : 'bg-[#F7F8FA]'}`}>
+            <div className={`px-4 md:px-6 py-3 flex items-center justify-between z-20 overflow-x-auto gap-4 ${mode === 'presentation' ? 'bg-transparent text-white fixed top-0 w-full hover:bg-black/50 transition-colors' : 'bg-white border-b border-gray-200 sticky top-0'}`}>
+                 <div className="flex items-center gap-4 flex-shrink-0">
+                     {mode !== 'presentation' && (
+                         <div className="flex bg-gray-100 rounded-lg p-0.5">
+                             <button onClick={()=>setMode('list')} className={`p-1.5 rounded-md transition-all ${mode==='list'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.List width={16}/></button>
+                             <button onClick={()=>setMode('board')} className={`p-1.5 rounded-md transition-all ${mode==='board'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.Grid width={16}/></button>
+                         </div>
+                     )}
+                     <span className="font-bold text-lg hidden md:block">制作分镜</span>
                  </div>
-             )}
 
-             <div className="flex-1 flex flex-col items-center justify-center relative z-10">
-                {mode === 'compass' ? (
-                    <div className="relative w-72 h-72">
-                         <div className="absolute inset-0 rounded-full border border-white/10 bg-white/5 backdrop-blur-md"></div>
-                         <div className="absolute inset-2 transition-transform duration-200 ease-out will-change-transform" style={compassStyle}>
-                             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-1 h-4 bg-red-600 rounded-full shadow-[0_0_10px_red]"></div>
-                             <div className="absolute top-7 left-1/2 -translate-x-1/2 text-red-500 font-bold text-lg">N</div>
-                             <div className="absolute top-1/2 right-4 -translate-y-1/2 text-gray-500 text-xs font-medium">东</div>
-                             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-gray-500 text-xs font-medium">南</div>
-                             <div className="absolute top-1/2 left-4 -translate-y-1/2 text-gray-500 text-xs font-medium">西</div>
-                             {[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => (
-                                 <div key={deg} className="absolute top-0 left-1/2 w-[1px] h-full origin-center pointer-events-none" style={{ transform: `translateX(-50%) rotate(${deg}deg)` }}>
-                                     <div className="w-[1px] h-3 bg-white/20 mx-auto mt-0"></div>
+                 <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+                     {/* Functional Aspect Ratio Dropdown */}
+                     <div className="relative group">
+                        <select 
+                            value={aspect} 
+                            onChange={(e)=>setAspect(e.target.value as AspectRatio)}
+                            className={`appearance-none text-xs font-bold rounded-lg pl-3 pr-8 py-2 outline-none cursor-pointer transition-colors ${mode === 'presentation' ? 'bg-white/20 text-white border-none' : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'}`}
+                        >
+                            <option value="16:9">16:9</option>
+                            <option value="2.35:1">2.35:1</option>
+                            <option value="4:3">4:3</option>
+                            <option value="1:1">1:1</option>
+                            <option value="9:16">9:16</option>
+                        </select>
+                        <UI.ChevronDown className={`absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none ${mode === 'presentation' ? 'text-white' : 'text-gray-500'}`} />
+                     </div>
+                     
+                     <div className="hidden md:flex items-center gap-2">
+                         <button className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" title="批量上传"><Icons.Upload width={18}/></button>
+                         <button className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" title="PDF导出"><UI.Download width={18}/></button>
+                     </div>
+                     
+                     <button 
+                        onClick={() => setMode(mode === 'presentation' ? 'list' : 'presentation')}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors whitespace-nowrap ${mode==='presentation'?'bg-[#FCD34D] text-black':'bg-black text-white hover:bg-gray-800'}`}
+                     >
+                        {mode === 'presentation' ? <Icons.Close width={14}/> : <UI.Play width={14}/>}
+                        {mode === 'presentation' ? '退出' : '放映'}
+                     </button>
+                 </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-32">
+                {mode === 'presentation' ? (
+                     <div className="max-w-6xl mx-auto h-full flex items-center justify-center p-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full">
+                             {shots.map(s => (
+                                 <div key={s.id} className="bg-[#1a1a1a] rounded-xl overflow-hidden shadow-2xl border border-white/10">
+                                     <div className="bg-black/50 w-full relative group" style={{aspectRatio: aspect.replace(':','/')}}>
+                                          <div className="absolute inset-0 flex items-center justify-center text-white/20">
+                                              <Icons.Video width={48} height={48}/>
+                                          </div>
+                                     </div>
+                                     <div className="p-4">
+                                         <h3 className="text-xl font-bold mb-1 text-gray-200">Shot {s.shotNo}</h3>
+                                         <p className="text-gray-400 text-sm leading-relaxed">{s.content || '暂无描述'}</p>
+                                     </div>
                                  </div>
                              ))}
                          </div>
-                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                             <div className="text-6xl font-light tracking-tighter">{Math.round(heading)}°</div>
-                             <div className="text-xs text-gray-500 uppercase tracking-widest mt-1">磁北</div>
-                         </div>
-                         <div className="absolute -top-6 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-white"></div>
+                     </div>
+                ) : mode === 'list' ? (
+                    <div className="max-w-5xl mx-auto space-y-4">
+                        {shots.map((shot) => (
+                             <div key={shot.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4 items-start group hover:border-[#FCD34D] transition-colors">
+                                 <div className="font-mono text-gray-400 font-bold pt-1 w-8">#{shot.shotNo}</div>
+                                 
+                                 <div className="w-24 md:w-32 bg-gray-100 rounded-lg flex-shrink-0 relative cursor-pointer overflow-hidden border border-gray-200" style={{aspectRatio: aspect.replace(':','/')}}>
+                                      <div className="absolute inset-0 flex items-center justify-center text-gray-300"><Icons.Video width={20}/></div>
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition-opacity">更换</div>
+                                 </div>
+
+                                 <div className="flex-1 min-w-0">
+                                     <textarea 
+                                        className="w-full bg-transparent outline-none text-sm resize-none h-16 placeholder-gray-300 mb-2" 
+                                        placeholder="输入画面描述..."
+                                        value={shot.content}
+                                        onChange={(e) => {
+                                            const newShots = [...shots];
+                                            newShots.find(s=>s.id===shot.id)!.content = e.target.value;
+                                            setShots(newShots);
+                                        }}
+                                     />
+                                     <div className="flex gap-2">
+                                         <input className="bg-gray-50 border border-gray-100 rounded px-2 py-1 text-xs w-16 text-center outline-none focus:border-[#FCD34D]" placeholder="景别" value={shot.type} onChange={()=>{}} />
+                                         <input className="bg-gray-50 border border-gray-100 rounded px-2 py-1 text-xs w-16 text-center outline-none focus:border-[#FCD34D]" placeholder="时长" value={shot.duration} onChange={()=>{}} />
+                                     </div>
+                                 </div>
+                             </div>
+                        ))}
+                        <button onClick={addShot} className="w-full py-4 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-[#FCD34D] hover:text-[#FCD34D] hover:bg-yellow-50/10 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                             <Icons.Add width={18}/> 添加镜头
+                        </button>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-12 items-center">
-                        <div className="relative w-64 h-64 rounded-full border border-white/10 bg-white/5 backdrop-blur-xl shadow-inner flex items-center justify-center">
-                            <div className="absolute w-full h-[1px] bg-white/10"></div>
-                            <div className="absolute h-full w-[1px] bg-white/10"></div>
-                            <div className="absolute w-32 h-32 rounded-full border border-white/10"></div>
-                            <div 
-                                className="absolute w-16 h-16 rounded-full bg-white/20 backdrop-blur-md border border-white/30 shadow-[0_0_20px_rgba(255,255,255,0.2)_inset]"
-                                style={{ left: `${clampedX}%`, top: `${clampedY}%`, transform: 'translate(-50%, -50%)' }}
-                            ></div>
-                            <div className="absolute text-center pointer-events-none z-20 mix-blend-difference">
-                                <div className="text-5xl font-light">{Math.round(Math.abs(tiltX))}°</div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {shots.map((shot) => (
+                             <div key={shot.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden group hover:border-[#FCD34D] transition-colors">
+                                  <div className="bg-gray-100 w-full relative" style={{aspectRatio: aspect.replace(':','/')}}>
+                                      <div className="absolute inset-0 flex items-center justify-center text-gray-300"><Icons.Video width={24}/></div>
+                                      <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded backdrop-blur-sm">{shot.type || 'WS'}</div>
+                                  </div>
+                                  <div className="p-3">
+                                      <div className="flex justify-between items-center mb-1">
+                                          <span className="font-bold text-xs">Shot {shot.shotNo}</span>
+                                          <span className="text-[10px] text-gray-400">{shot.duration}</span>
+                                      </div>
+                                      <p className="text-[10px] text-gray-500 line-clamp-2">{shot.content || '无描述'}</p>
+                                  </div>
+                             </div>
+                        ))}
+                        <button onClick={addShot} className="rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-[#FCD34D] hover:text-[#FCD34D] transition-all min-h-[120px]">
+                            <Icons.Add width={24}/>
+                        </button>
                     </div>
                 )}
-             </div>
+            </div>
+        </div>
+    );
+};
 
-             <div className="pb-32 flex justify-center z-20">
-                 <div className="bg-[#111] rounded-full p-1 flex shadow-lg border border-white/10">
-                     <button onClick={() => setMode('compass')} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${mode === 'compass' ? 'bg-[#333] text-white' : 'text-gray-500 hover:text-white'}`}>指南针</button>
-                     <button onClick={() => setMode('level')} className={`px-6 py-3 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${mode === 'level' ? 'bg-[#333] text-white' : 'text-gray-500 hover:text-white'}`}>水平仪</button>
+// 4. PLAN VIEW
+const PlanView = () => {
+    const [mode, setMode] = useState<PlanMode>('list');
+    return (
+        <div className="flex flex-col h-full bg-[#F7F8FA]">
+             <div className="bg-white px-6 py-4 flex items-center justify-between border-b border-gray-200 sticky top-0 z-10">
+                 <div className="flex items-center gap-4">
+                     <h2 className="text-lg font-bold">拍摄计划</h2>
+                     <div className="flex bg-gray-100 rounded-lg p-0.5">
+                         <button onClick={()=>setMode('list')} className={`p-1.5 rounded-md transition-all ${mode==='list'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.List width={16}/></button>
+                         <button onClick={()=>setMode('calendar')} className={`p-1.5 rounded-md transition-all ${mode==='calendar'?'bg-white shadow text-black':'text-gray-400 hover:text-gray-600'}`}><UI.Calendar width={16}/></button>
+                     </div>
                  </div>
+                 <button className="bg-[#181818] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-black transition-colors shadow-sm">新建</button>
+             </div>
+             <div className="flex-1 p-4 md:p-6 overflow-y-auto pb-32">
+                 {mode === 'list' ? (
+                     <div className="h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                         <UI.List width={48} className="opacity-20"/>
+                         <p className="text-sm">暂无计划</p>
+                     </div>
+                 ) : (
+                     <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                         {[...Array(5)].map((_, i) => (
+                             <div key={i} className="bg-white p-4 rounded-xl border border-gray-200 min-h-[100px] shadow-sm">
+                                 <div className="text-xs font-bold text-gray-400 mb-2">10月{24+i}日</div>
+                                 {i===0 && <div className="bg-[#FCD34D] text-black text-xs p-2 rounded font-bold">外景拍摄 Day 1</div>}
+                             </div>
+                         ))}
+                     </div>
+                 )}
              </div>
         </div>
     );
 };
 
-// 5. Dark Minimal Navbar
-const M3NavBar = ({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) => {
-    const tabs: { id: Tab; icon: React.FC<any>; label: string }[] = [
-        { id: 'food', icon: Icons.Food, label: '吃什么' },
-        { id: 'measure', icon: Icons.Compass, label: '工具箱' },
-        { id: 'calc', icon: Icons.Calculator, label: '计算器' },
-        { id: 'support', icon: Icons.Apps, label: '应用' }, 
+// 5. CALL SHEET
+const CallSheetView = () => (
+    <div className="h-full bg-[#F7F8FA] p-4 md:p-8 overflow-y-auto pb-32 flex justify-center">
+         <div className="w-full max-w-2xl bg-white min-h-[800px] shadow-sm border border-gray-200 p-8 md:p-12 relative">
+             <div className="text-center md:text-left mb-8 border-b-4 border-black pb-6">
+                 <h1 className="text-3xl md:text-4xl font-black uppercase">Call Sheet</h1>
+                 <div className="flex flex-col md:flex-row justify-between mt-2 text-gray-500 font-bold text-xs uppercase">
+                    <span>通告单 #12</span>
+                    <span>2023.10.24 (DAY 3)</span>
+                 </div>
+             </div>
+             <div className="space-y-6">
+                 <div className="bg-gray-50 p-4 rounded border border-gray-100">
+                     <h3 className="text-xs font-bold text-gray-400 uppercase mb-2">Location</h3>
+                     <div className="font-bold">创意产业园 A座</div>
+                 </div>
+                 <div>
+                     <div className="bg-black text-white px-3 py-1 text-xs font-bold uppercase inline-block mb-3">Schedule</div>
+                     <div className="space-y-2 text-sm">
+                         <div className="flex justify-between border-b border-gray-100 py-2">
+                             <span className="font-mono font-bold">06:30</span>
+                             <span>全员集合</span>
+                         </div>
+                         <div className="flex justify-between border-b border-gray-100 py-2">
+                             <span className="font-mono font-bold">08:00</span>
+                             <span>开机</span>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+         </div>
+    </div>
+);
+
+// 6. MORE APPS VIEW
+const MoreAppsView = () => {
+    const tools = [
+        { id: 'batch', label: '批量上传', icon: Icons.Upload, color: 'bg-blue-100 text-blue-600' },
+        { id: 'pdf', label: 'PDF导出', icon: UI.Download, color: 'bg-red-100 text-red-600' },
+        { id: 'clapper', label: '电子场记', icon: UI.Clapper, color: 'bg-gray-800 text-white' },
+        { id: 'trash', label: '回收站', icon: UI.Trash, color: 'bg-gray-100 text-gray-600' },
+        { id: 'settings', label: '设置', icon: Icons.Settings, color: 'bg-gray-100 text-gray-600' },
+        { id: 'help', label: '帮助中心', icon: UI.Info, color: 'bg-yellow-100 text-yellow-700' },
     ];
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 h-[90px] bg-[#050505] border-t border-white/5 z-50 flex items-center justify-around px-4 pb-4">
+        <div className="h-full bg-[#F7F8FA] p-6 pb-32 overflow-y-auto">
+            <h1 className="text-2xl font-black text-gray-900 mb-8">更多应用</h1>
+            
+            <div className="mb-8">
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">常用工具</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {tools.slice(0, 3).map(tool => (
+                        <button key={tool.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-[#FCD34D] transition-colors group">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color} group-hover:scale-110 transition-transform`}>
+                                <tool.icon width={20} />
+                            </div>
+                            <span className="text-sm font-bold text-gray-700">{tool.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div>
+                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4 tracking-wider">系统管理</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {tools.slice(3).map(tool => (
+                        <button key={tool.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col items-center gap-3 hover:border-gray-300 transition-colors">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tool.color}`}>
+                                <tool.icon width={20} />
+                            </div>
+                            <span className="text-sm font-bold text-gray-700">{tool.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN NAV BAR (Fixed Bottom) ---
+const MainNavBar = ({ active, onChange }: { active: EditorTab; onChange: (t: EditorTab) => void }) => {
+    const tabs: { id: EditorTab; icon: React.FC<any>; label: string }[] = [
+        { id: 'workspace', icon: UI.Users, label: '工作台' },
+        { id: 'storyboard', icon: UI.Grid, label: '分镜' },
+        { id: 'plan', icon: UI.Calendar, label: '计划' },
+        { id: 'callsheet', icon: UI.FileText, label: '通告' },
+        { id: 'apps', icon: Icons.Apps, label: '更多' },
+    ];
+
+    return (
+        <div className="fixed bottom-0 left-0 right-0 h-[80px] bg-white border-t border-gray-100 flex items-center justify-around px-2 md:px-6 pb-4 md:pb-0 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
             {tabs.map((t) => {
                 const isActive = active === t.id;
                 return (
                     <button 
                         key={t.id} 
                         onClick={() => onChange(t.id)}
-                        className="flex flex-col items-center justify-center gap-2 w-16 group"
+                        className="flex flex-col items-center justify-center gap-1 w-full h-full group active:scale-95 transition-transform"
                     >
                         <div className={`
-                            h-10 w-16 rounded-full flex items-center justify-center transition-all duration-300
-                            ${isActive ? 'bg-[#333] shadow-[0_0_10px_rgba(255,255,255,0.05)]' : 'bg-transparent'}
+                            h-8 w-14 rounded-full flex items-center justify-center transition-all duration-300
+                            ${isActive ? 'bg-black text-[#FCD34D]' : 'bg-transparent text-gray-400 group-hover:bg-gray-50'}
                         `}>
-                            <t.icon 
-                                width={20} 
-                                height={20} 
-                                className={`transition-colors duration-200 ${isActive ? 'text-white' : 'text-gray-600 group-hover:text-gray-400'}`} 
-                                strokeWidth={2}
-                            />
+                            <t.icon width={20} height={20} strokeWidth={isActive ? 2.5 : 2} />
                         </div>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`}>
+                        <span className={`text-[10px] font-bold transition-colors ${isActive ? 'text-black' : 'text-gray-400'}`}>
                             {t.label}
                         </span>
                     </button>
@@ -660,28 +564,67 @@ const M3NavBar = ({ active, onChange }: { active: Tab; onChange: (t: Tab) => voi
     );
 };
 
+// --- APP SHELL ---
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>('food'); // Default to Food
+    // Top-level state determines if we are selecting a project or editing one
+    const [currentProject, setCurrentProject] = useState<Project | null>(null);
+    
+    // Tab state belongs to the editor view
+    const [editorTab, setEditorTab] = useState<EditorTab>('workspace');
 
-  return (
-    <div className="h-[100dvh] w-full overflow-hidden font-sans bg-[#050505] text-white flex flex-col items-center fixed inset-0 overscroll-none">
-        <div className="w-full h-full max-w-md bg-[#050505] flex flex-col relative shadow-2xl md:my-0 overflow-hidden">
-            <main className="flex-1 overflow-hidden relative flex flex-col w-full">
-                {activeTab === 'food' && <FoodView />}
-                {activeTab === 'calc' && <CalcView />}
-                {activeTab === 'measure' && <CompassLevelView />}
-                {activeTab === 'support' && <AppSupportView />}
+    // When opening a project, default to workspace
+    const handleOpenProject = (p: Project) => {
+        setCurrentProject(p);
+        setEditorTab('workspace');
+    };
+
+    // Going back clears the project
+    const handleBack = () => {
+        setCurrentProject(null);
+    };
+
+    // --- VIEW LOGIC ---
+    // If no project is selected, show the list.
+    if (!currentProject) {
+        return <ProjectListView onOpenProject={handleOpenProject} />;
+    }
+
+    // If a project IS selected, show the Editor Layout (Header + Content + BottomNav)
+    return (
+        <div className="h-screen w-full bg-white text-[#333] flex flex-col overflow-hidden font-sans">
+            {/* Top Bar (Editor Only) */}
+            <header className="h-14 border-b border-gray-100 bg-white flex items-center justify-between px-4 z-40 sticky top-0 flex-shrink-0">
+                 <div className="flex items-center gap-3">
+                     <button onClick={handleBack} className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-500">
+                         <Icons.Back width={20}/>
+                     </button>
+                     <div className="min-w-0">
+                         <div className="font-bold text-sm leading-tight truncate max-w-[150px] md:max-w-xs">{currentProject.title}</div>
+                         <div className="text-[10px] text-gray-400 leading-tight truncate">上次编辑: {currentProject.updatedAt}</div>
+                     </div>
+                 </div>
+                 <div className="flex items-center gap-2">
+                     <div className="hidden md:flex items-center gap-2 mr-4">
+                         <span className="w-6 h-6 rounded-full bg-gray-200 border border-white -ml-2 first:ml-0"></span>
+                         <span className="w-6 h-6 rounded-full bg-gray-300 border border-white -ml-2"></span>
+                     </div>
+                     <button className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><UI.Bell width={20}/></button>
+                 </div>
+            </header>
+
+            {/* Main Content Area (Scrollable with bottom padding) */}
+            <main className="flex-1 overflow-hidden relative bg-[#F7F8FA]">
+                {editorTab === 'workspace' && <WorkspaceView />}
+                {editorTab === 'storyboard' && <StoryboardView projectRatio={currentProject.aspectRatio} />}
+                {editorTab === 'plan' && <PlanView />}
+                {editorTab === 'callsheet' && <CallSheetView />}
+                {editorTab === 'apps' && <MoreAppsView />}
             </main>
-            <M3NavBar active={activeTab} onChange={setActiveTab} />
+
+            {/* Fixed Bottom Navigation */}
+            <MainNavBar active={editorTab} onChange={setEditorTab} />
         </div>
-        <style>{`
-            @keyframes springUp {
-                0% { transform: translateY(50px) scale(0.9); opacity: 0; }
-                100% { transform: translateY(0) scale(1); opacity: 1; }
-            }
-        `}</style>
-    </div>
-  );
+    );
 };
 
 export default App;

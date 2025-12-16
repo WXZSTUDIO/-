@@ -240,6 +240,22 @@ export const Icons = {
       <line x1="12" y1="3" x2="12" y2="15"></line>
     </svg>
   ),
+  Back: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+  ),
+  Check: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+  ),
+  Clock: (props: IconProps) => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+  ),
 };
 
 export const TRANSLATIONS = {

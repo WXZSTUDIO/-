@@ -145,6 +145,19 @@ export const Icons = {
        <line x1="12" y1="2" x2="12" y2="2"></line>
     </svg>
   ),
+  Compass: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="10"></circle>
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+    </svg>
+  ),
+  Level: (props: IconProps) => (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+      <line x1="2" y1="12" x2="22" y2="12"></line>
+      <circle cx="12" cy="12" r="3"></circle>
+    </svg>
+  ),
   Info: (props: IconProps) => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <circle cx="12" cy="12" r="10"></circle>
@@ -227,7 +240,6 @@ export const Icons = {
       <line x1="12" y1="3" x2="12" y2="15"></line>
     </svg>
   ),
-  // Deprecated guitar icons can be removed or kept, keeping just in case.
 };
 
 export const TRANSLATIONS = {
